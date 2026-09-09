@@ -3,599 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dah Tracker | Nitro Type Live Leaderboards</title>
+    <title>Dah Tracker - Leaderboards</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --bg-main: #0f172a;
-            --card-bg: #1e293b;
-            --table-header: #0f172a;
-            --accent-blue: #38bdf8;
-            --text-white: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-            --gold-member: #f59e0b;
-            --silver-badge: #94a3b8;
-            --bronze-badge: #b45309;
-            --online-green: #22c55e;
-            --offline-gray: #475569;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg-main);
-            color: var(--text-white);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            padding: 24px;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 1280px;
-            margin: 0 auto 20px auto;
-        }
-
-        .brand h1 {
-            font-size: 2.2rem;
-            color: var(--accent-blue);
-            font-weight: 900;
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .brand span {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-weight: 500;
-            background: #0f172a;
-            padding: 4px 10px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--card-bg);
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-            background-color: var(--online-green);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--online-green);
-        }
-
-        .main-card {
-            max-width: 1280px;
-            margin: 0 auto;
-            background: var(--card-bg);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            padding: 24px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-        }
-
-        .nav-tabs, .timeframe-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 10px 18px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .tab-btn:hover { color: var(--text-white); background: rgba(255,255,255,0.05); }
-        .tab-btn.active {
-            background: var(--accent-blue);
-            color: #0f172a;
-        }
-
-        .timeframe-tabs {
-            background: #0f172a;
-            padding: 6px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-        }
-
-        .timeframe-tabs .tab-btn {
-            font-size: 0.85rem;
-            padding: 6px 14px;
-            border-radius: 6px;
-        }
-
-        .timeframe-tabs .tab-btn.active {
-            background: var(--accent-blue);
-            color: #0f172a;
-        }
-
-        .filter-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border-color);
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .search-box, .select-box {
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            color: var(--text-white);
-            padding: 10px 14px;
-            border-radius: 8px;
-            outline: none;
-            font-size: 0.9rem;
-        }
-
-        .search-box:focus, .select-box:focus {
-            border-color: var(--accent-blue);
-        }
-
-        .checkbox-label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-        }
-
-        .table-container { overflow-x: auto; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        th {
-            background: var(--table-header);
-            color: var(--accent-blue);
-            padding: 14px 18px;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        td {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.92rem;
-            vertical-align: middle;
-        }
-
-        tr:hover { background: rgba(255,255,255,0.02); }
-
-        .rank-badge {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.9rem;
-            background: #334155;
-            color: var(--text-white);
-        }
-
-        .rank-1 { background: var(--gold-member); color: #000; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
-        .rank-2 { background: var(--silver-badge); color: #000; }
-        .rank-3 { background: var(--bronze-badge); color: #fff; }
-
-        .online-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 10px;
-            background: var(--offline-gray);
-        }
-        .online-dot.active {
-            background: var(--online-green);
-            box-shadow: 0 0 8px var(--online-green);
-        }
-
-        .car-thumb {
-            width: 60px;
-            height: auto;
-            vertical-align: middle;
-            margin-right: 14px;
-        }
-
-        .racer-info { display: inline-block; vertical-align: middle; }
-        .tag-emblem { color: var(--gold-member); font-weight: 800; margin-right: 6px; }
-        .username { font-weight: 800; color: var(--text-white); }
-        .username.gold { color: var(--gold-member); }
-        .title-sub { font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 3px; font-style: italic; }
-
-        .graph-btn {
-            background: none;
-            border: none;
-            color: var(--accent-blue);
-            cursor: pointer;
-            margin-left: 8px;
-            font-size: 1rem;
-            transition: transform 0.1s ease;
-        }
-
-        .graph-btn:hover { transform: scale(1.2); }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 28px;
-            border-radius: 14px;
-            width: 90%;
-            max-width: 680px;
-            max-height: 85vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-        }
-        .close-btn {
-            float: right;
-            cursor: pointer;
-            color: var(--text-muted);
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        .close-btn:hover { color: var(--text-white); }
-
-        .metric-badge {
-            background: #0f172a;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            text-align: center;
-        }
-        .metric-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin: 16px 0;
-        }
+        body { background-color: #0b1120; color: #f8fafc; font-family: sans-serif; }
+        #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto; }
     </style>
 </head>
-<body>
+<body class="p-6">
 
-    <div class="header">
-        <div class="brand">
-            <h1>Dah Tracker <span>Nitro Type Leaderboard</span></h1>
-        </div>
-        <div class="status-badge">
-            <span class="dot"></span>
-            <span id="status-text">Live 5-Min Sync Active</span>
-        </div>
-    </div>
-
-    <div class="main-card">
-        <!-- Main Navigation -->
-        <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchMainTab('player')">Individual Leaderboards</button>
-            <button class="tab-btn" onclick="switchMainTab('team')">Team Leaderboards</button>
-            <button class="tab-btn" onclick="alert('Hall of Fame: All-time record holders archived.')">Hall of Fame</button>
-            <button class="tab-btn" onclick="alert('Bans Log: No active bans detected.')">Bans</button>
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-sky-400">Dah Tracker</h1>
+            <span class="bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs px-3 py-1 rounded-full flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Live Sync Active
+            </span>
         </div>
 
-        <!-- Sub-Navigation (Timeframes) -->
-        <div class="timeframe-tabs">
-            <button class="tab-btn" onclick="setTimeframe(1440, this)">24 Hour</button>
-            <button class="tab-btn" onclick="setTimeframe(129600, this)">Season</button>
-            <button class="tab-btn" onclick="setTimeframe(30, this)">Activity</button>
-            <button class="tab-btn active" onclick="setTimeframe(60, this)">60 Minute</button>
-            <button class="tab-btn" onclick="setTimeframe(10080, this)">7 Day</button>
-            <button class="tab-btn" onclick="setTimeframe(1440, this)">Daily</button>
-            <button class="tab-btn" onclick="setTimeframe(10080, this)">Weekly</button>
-            <button class="tab-btn" onclick="setTimeframe(43200, this)">Monthly</button>
-            <button class="tab-btn" onclick="setTimeframe(525600, this)">Yearly</button>
-            <button class="tab-btn" onclick="setTimeframe(5256000, this)">All-Time</button>
-            <button class="tab-btn" onclick="setTimeframe(180, this)">Custom</button>
+        <!-- Timeframe Navigation -->
+        <div class="flex gap-2 mb-4 text-sm font-semibold border-b border-slate-800 pb-2">
+            <button onclick="setTab('60m')" class="tab-btn px-3 py-1.5 rounded bg-sky-500 text-white" id="btn-60m">60 Minute</button>
+            <button onclick="setTab('24h')" class="tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white" id="btn-24h">24 Hour</button>
+            <button onclick="setTab('alltime')" class="tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white" id="btn-alltime">All-Time</button>
         </div>
 
-        <!-- Filter Bar -->
-        <div class="filter-bar">
-            <div class="filter-group">
-                <input type="text" id="search-input" class="search-box" placeholder="Search racer or team tag..." onkeyup="filterTable()">
-                <select id="team-filter" class="select-box" onchange="filterTable()">
-                    <option value="">All Teams</option>
-                </select>
-            </div>
-            <div>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="flagged-check" onchange="filterTable()"> Show flagged racers
-                </label>
-            </div>
-        </div>
-
-        <!-- Table Container -->
-        <div class="table-container">
-            <table>
+        <!-- Leaderboard Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
                 <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th id="entity-col-header">Racer</th>
-                        <th>Races Gained</th>
-                        <th>Accuracy</th>
-                        <th>WPM</th>
-                        <th>Points Gained</th>
-                        <th>PPR</th>
+                    <tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                        <th class="p-3">Rank</th>
+                        <th class="p-3">Racer</th>
+                        <th class="p-3">Races</th>
+                        <th class="p-3">WPM</th>
+                        <th class="p-3">Accuracy</th>
+                        <th class="p-3">Points</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body">
-                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading Live Dah Tracker Snapshots...</td></tr>
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-500">Initializing...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-    </div>
 
-    <!-- Racer / Team Detail Modal Popup -->
-    <div id="stats-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2 id="modal-title" style="color: var(--accent-blue); margin-bottom: 4px;">Stats Detail</h2>
-            <p id="modal-subtitle" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;"></p>
-            
-            <div class="metric-grid" id="modal-metrics"></div>
-
-            <h3 style="font-size: 1rem; color: var(--text-white); margin-bottom: 10px;">Recent 5-Minute Snapshots</h3>
-            <div id="modal-body" style="font-size: 0.85rem; color: var(--text-muted);"></div>
+        <!-- On-Screen Debugger -->
+        <div class="mt-8 border border-slate-800 rounded-lg overflow-hidden">
+            <div class="bg-slate-950 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span class="font-bold uppercase tracking-wider text-amber-400">System Debug Log</span>
+                <button onclick="document.getElementById('debug-log').innerHTML=''" class="hover:text-white">Clear</button>
+            </div>
+            <div id="debug-log" class="p-4 space-y-1"></div>
         </div>
     </div>
 
     <script>
-        // Insert your Supabase Project Details
-        const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co";
+        // REPLACE THESE TWO STRINGS WITH YOUR EXACT SUPABASE CREDENTIALS
+        const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
-        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        let currentType = 'player';
-        let currentMinutes = 60;
-        let cachedData = [];
+        const logElement = document.getElementById("debug-log");
 
-        async function fetchLeaderboards() {
-            const boundary = new Date(Date.now() - currentMinutes * 60 * 1000).toISOString();
-
-            const { data, error } = await db
-                .from('snapshots')
-                .select('*')
-                .eq('type', currentType)
-                .gte('captured_at', boundary)
-                .order('captured_at', { ascending: true });
-
-            if (error) {
-                console.error("Supabase error:", error);
-                return;
-            }
-
-            // Delta Math Engine Logic: Current Snapshot - Timeframe Boundary Snapshot
-            const map = {};
-            data.forEach(row => {
-                if (!map[row.identifier]) {
-                    map[row.identifier] = { first: row, latest: row };
-                } else {
-                    map[row.identifier].latest = row;
-                }
-            });
-
-            cachedData = Object.keys(map).map(id => {
-                const first = map[id].first;
-                const latest = map[id].latest;
-                const racesGained = latest.races - first.races;
-                const pointsGained = latest.points - first.points;
-
-                return {
-                    identifier: id,
-                    displayName: latest.title || id,
-                    racesGained: racesGained >= 0 ? racesGained : 0,
-                    pointsGained: pointsGained >= 0 ? pointsGained : 0,
-                    wpm: latest.wpm,
-                    accuracy: latest.accuracy,
-                    ppr: latest.ppr,
-                    online: latest.online_status,
-                    membership: latest.membership_status,
-                    carUrl: latest.car_img_url,
-                    title: latest.title,
-                    teamTag: latest.team_tag
-                };
-            });
-
-            // Top 100 Engine: Sort Descending by Races Gained and Limit to Top 100
-            cachedData.sort((a, b) => b.racesGained - a.racesGained);
-            cachedData = cachedData.slice(0, 100);
-
-            renderTable(cachedData);
-            populateTeamFilter(cachedData);
-        }
-
-        function renderTable(dataList) {
-            const tbody = document.getElementById("leaderboard-body");
-            tbody.innerHTML = "";
-
-            if (dataList.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No snapshot records found within this timeframe.</td></tr>`;
-                return;
-            }
-
-            dataList.forEach((item, index) => {
-                const rank = index + 1;
-                let rankClass = "rank-badge";
-                if (rank === 1) rankClass += " rank-1";
-                if (rank === 2) rankClass += " rank-2";
-                if (rank === 3) rankClass += " rank-3";
-
-                const onlineClass = item.online ? "online-dot active" : "online-dot";
-                const isGold = item.membership === "gold" ? "gold" : "";
-                
-                const tagSpan = item.teamTag ? `<span class="tag-emblem">[${item.teamTag}]</span>` : "";
-                const carImg = item.carUrl ? `<img src="${item.carUrl}" class="car-thumb" alt="Car">` : "";
-                
-                const primaryName = currentType === 'team' ? item.title : item.identifier;
-                const subTitle = currentType === 'team' ? `Tag: [${item.teamTag}]` : (item.title ? `"${item.title}"` : '"Racer"');
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td>
-                            <span class="${rankClass}">${rank}</span>
-                        </td>
-                        <td>
-                            <span class="${onlineClass}"></span>
-                            ${carImg}
-                            <div class="racer-info">
-                                ${currentType === 'player' ? tagSpan : ''}
-                                <span class="username ${isGold}">${primaryName}</span>
-                                <button class="graph-btn" onclick="openModal('${item.identifier}')">📊</button>
-                                <span class="title-sub">${subTitle}</span>
-                            </div>
-                        </td>
-                        <td><strong>+${item.racesGained.toLocaleString()}</strong></td>
-                        <td>${item.accuracy}%</td>
-                        <td>${item.wpm}</td>
-                        <td>+${item.pointsGained.toLocaleString()}</td>
-                        <td>${item.ppr}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        function populateTeamFilter(dataList) {
-            const select = document.getElementById("team-filter");
-            const tags = [...new Set(dataList.map(i => i.teamTag).filter(Boolean))];
-            select.innerHTML = `<option value="">All Teams</option>`;
-            tags.forEach(tag => {
-                select.innerHTML += `<option value="${tag}">${tag}</option>`;
-            });
-        }
-
-        function filterTable() {
-            const query = document.getElementById("search-input").value.toLowerCase();
-            const selectedTeam = document.getElementById("team-filter").value;
-
-            const filtered = cachedData.filter(item => {
-                const matchesSearch = item.identifier.toLowerCase().includes(query) || 
-                                     (item.title && item.title.toLowerCase().includes(query)) ||
-                                     (item.teamTag && item.teamTag.toLowerCase().includes(query));
-                const matchesTeam = selectedTeam === "" || item.teamTag === selectedTeam;
-                return matchesSearch && matchesTeam;
-            });
-
-            renderTable(filtered);
-        }
-
-        function switchMainTab(type) {
-            currentType = type;
-            document.querySelectorAll('.nav-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+        function log(msg, type = "info") {
+            const time = new Date().toLocaleTimeString();
+            let color = "text-emerald-400";
+            if (type === "warn") color = "text-amber-400";
+            if (type === "error") color = "text-red-400";
             
-            document.getElementById("entity-col-header").innerText = type === 'team' ? 'Team' : 'Racer';
-            fetchLeaderboards();
+            console.log(`[${time}] [${type.toUpperCase()}] ${msg}`);
+            logElement.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
         }
 
-        function setTimeframe(mins, element) {
-            currentMinutes = mins;
-            document.querySelectorAll('.timeframe-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
-            element.classList.add('active');
-            fetchLeaderboards();
-        }
-
-        async function openModal(identifier) {
-            document.getElementById("modal-title").innerText = identifier;
-            document.getElementById("modal-subtitle").innerText = `Historical growth and snapshot breakdown`;
-            document.getElementById("modal-body").innerHTML = "Loading historical logs...";
-            document.getElementById("modal-metrics").innerHTML = "";
-            document.getElementById("stats-modal").style.display = "flex";
-
-            const { data } = await db
-                .from('snapshots')
-                .select('*')
-                .eq('identifier', identifier)
-                .order('captured_at', { ascending: false })
-                .limit(15);
-
-            if (data && data.length > 0) {
-                const latest = data[0];
-                const oldest = data[data.length - 1];
-                const racesGained = latest.races - oldest.races;
-
-                document.getElementById("modal-metrics").innerHTML = `
-                    <div class="metric-badge">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Speed</span>
-                        <h4 style="color: var(--accent-blue); font-size: 1.1rem;">${latest.wpm} WPM</h4>
-                    </div>
-                    <div class="metric-badge">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Accuracy</span>
-                        <h4 style="color: var(--accent-blue); font-size: 1.1rem;">${latest.accuracy}%</h4>
-                    </div>
-                    <div class="metric-badge">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Session Gain</span>
-                        <h4 style="color: var(--gold-member); font-size: 1.1rem;">+${racesGained} Races</h4>
-                    </div>
-                `;
-
-                let html = `<ul style="list-style: none; padding: 0;">`;
-                data.forEach(s => {
-                    const timeStr = new Date(s.captured_at).toLocaleTimeString();
-                    html += `<li style="padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
-                        <span>📅 ${timeStr}</span>
-                        <span>🏁 <strong>${s.races.toLocaleString()}</strong> races</span>
-                        <span>⚡ <strong>${s.wpm}</strong> WPM</span>
-                        <span>🎯 <strong>${s.accuracy}%</strong></span>
-                    </li>`;
-                });
-                html += `</ul>`;
-                document.getElementById("modal-body").innerHTML = html;
+        let db = null;
+        try {
+            if (window.supabase) {
+                db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                log("Supabase client initialized.");
             } else {
-                document.getElementById("modal-body").innerHTML = "No historical snapshots recorded yet.";
+                log("Failed to load Supabase JS SDK library!", "error");
+            }
+        } catch (e) {
+            log(`Client init exception: ${e.message}`, "error");
+        }
+
+        let currentTab = "60m";
+
+        function setTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll(".tab-btn").forEach(btn => {
+                btn.className = "tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white";
+            });
+            document.getElementById(`btn-${tab}`).className = "tab-btn px-3 py-1.5 rounded bg-sky-500 text-white";
+            log(`Switched tab to: ${tab}`);
+            loadLeaderboard();
+        }
+
+        async function loadLeaderboard() {
+            const tbody = document.getElementById("leaderboard-body");
+            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">Querying database...</td></tr>`;
+
+            if (!db) {
+                log("Cannot query: Supabase client is missing credentials.", "error");
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400 font-mono text-xs">Database configuration error. Check debug log below.</td></tr>`;
+                return;
+            }
+
+            log(`Executing query on view 'player_snapshots'...`);
+
+            try {
+                // Fetch recent snapshots from player_snapshots view
+                const { data, error, count } = await db
+                    .from('player_snapshots')
+                    .select('*', { count: 'exact' })
+                    .eq('type', 'player')
+                    .order('captured_at', { ascending: false })
+                    .limit(100);
+
+                if (error) {
+                    log(`Database Query Error: ${error.message} (Code: ${error.code})`, "error");
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400 font-mono text-xs">Query error: ${error.message}</td></tr>`;
+                    return;
+                }
+
+                log(`Query returned ${data ? data.length : 0} rows from 'player_snapshots'.`);
+
+                if (!data || data.length === 0) {
+                    log("Zero rows returned! Ensure scraper has run and SQL view exists.", "warn");
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">No snapshot records found within this timeframe.</td></tr>`;
+                    return;
+                }
+
+                // De-duplicate rows by player to grab their latest snapshot
+                const playerMap = {};
+                data.forEach(row => {
+                    if (!playerMap[row.identifier]) {
+                        playerMap[row.identifier] = row;
+                    }
+                });
+
+                const players = Object.values(playerMap);
+                log(`Successfully parsed ${players.length} unique racers from snapshots.`);
+
+                tbody.innerHTML = "";
+                players.forEach((p, index) => {
+                    tbody.innerHTML += `
+                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                            <td class="p-3 font-bold text-slate-400">#${index + 1}</td>
+                            <td class="p-3">
+                                <div class="font-semibold text-sky-300">${p.identifier}</div>
+                                <div class="text-xs text-slate-500">${p.team_tag ? '[' + p.team_tag + ']' : ''}</div>
+                            </td>
+                            <td class="p-3 font-mono">${p.races || 0}</td>
+                            <td class="p-3 font-mono">${p.wpm || 0}</td>
+                            <td class="p-3 font-mono">${p.accuracy || 0}%</td>
+                            <td class="p-3 font-mono text-emerald-400">${p.points || 0}</td>
+                        </tr>
+                    `;
+                });
+
+            } catch (err) {
+                log(`JavaScript runtime exception: ${err.message}`, "error");
             }
         }
 
-        function closeModal() {
-            document.getElementById("stats-modal").style.display = "none";
-        }
-
-        // Initial Load & Auto-Refresh Table Every 60 Seconds
-        fetchLeaderboards();
-        setInterval(fetchLeaderboards, 60000);
+        // Initial fetch
+        loadLeaderboard();
     </script>
 </body>
 </html>
