@@ -25,8 +25,7 @@ def fetch_tracked_entities():
 
 def register_entity(identifier: str, entity_type: str, name: str = ""):
     """
-    Registers or updates an entity. Automatically populates display name
-    when retrieved from live Nitro Type endpoints.
+    Registers or updates an entity in the entities table.
     """
     if not identifier:
         return
@@ -142,7 +141,7 @@ def scrape_team(team_tag: str):
         supabase.table("snapshots").insert(snapshot).execute()
         print(f"[TEAM] {official_team_name} [{clean_tag.upper()}]: {races} races | {len(members)} members")
 
-        # Recursive Auto-Discovery: Index all active players on the team
+        # Recursive Auto-Discovery: Register all active players on the team
         for member in members:
             m_username = member.get("username", "")
             m_display = member.get("displayName", m_username)
@@ -154,10 +153,12 @@ def scrape_team(team_tag: str):
 
 def main():
     start_time = time.time()
-    entities = fetch_tracked_entities()
-    print(f"Starting Dah Tracker scrape run for {len(entities)} registered entities...")
+    
+    # Pass 1: Scrape all currently tracked entities (Teams & existing Players)
+    initial_entities = fetch_tracked_entities()
+    print(f"Starting Pass 1: Processing {len(initial_entities)} registered entities...")
 
-    for entity in entities:
+    for entity in initial_entities:
         identifier = entity.get("identifier")
         entity_type = entity.get("type")
 
@@ -170,6 +171,21 @@ def main():
             scrape_team(identifier)
 
         time.sleep(0.2)  # Rate-limit safety barrier
+
+    # Pass 2: Re-fetch entities to immediately scrape newly discovered team members
+    updated_entities = fetch_tracked_entities()
+    already_scraped = {e.get("identifier") for e in initial_entities if e.get("type") == "player"}
+    
+    new_players = [
+        e.get("identifier") for e in updated_entities 
+        if e.get("type") == "player" and e.get("identifier") not in already_scraped
+    ]
+
+    if new_players:
+        print(f"Starting Pass 2: Scraping {len(new_players)} newly discovered team members...")
+        for username in new_players:
+            scrape_player(username)
+            time.sleep(0.2)
 
     elapsed = round(time.time() - start_time, 2)
     print(f"Scrape pass completed successfully in {elapsed} seconds.")
