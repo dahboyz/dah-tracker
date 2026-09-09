@@ -1,166 +1,336 @@
-import os
-import time
-import requests
-from supabase import create_client, Client
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dah Tracker - Leaderboards</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0b1120; color: #f8fafc; font-family: sans-serif; }
+        #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; }
+    </style>
+</head>
+<body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
 
-print("=== STARTING NITRO TYPE SCRAPER (FULL DATA MODE) ===")
+    <!-- Top Navigation Bar -->
+    <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-2 text-xl font-extrabold tracking-wider italic text-sky-400">
+                <span class="text-white">Dah</span> Tracker <span class="text-emerald-400 text-xs not-italic bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1.5 inline-flex"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Live</span>
+            </div>
+            <nav class="hidden md:flex items-center gap-1 text-sm font-medium">
+                <button class="px-4 py-2 rounded-lg bg-sky-500 text-white shadow-sm shadow-sky-500/30">Leaderboards</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Teams</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Racers</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition flex items-center gap-1.5">
+                    Showdown 
+                    <span class="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">NEW</span>
+                </button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Info</button>
+            </nav>
+        </div>
+        <div>
+            <button class="bg-sky-500 hover:bg-sky-400 text-white font-medium px-4 py-1.5 rounded-lg text-sm shadow transition">Login</button>
+        </div>
+    </header>
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    <main class="max-w-7xl mx-auto px-4 py-6">
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("[CRITICAL ERROR] Missing SUPABASE_URL or SUPABASE_KEY environment variables!")
-    raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables.")
+        <!-- Sub Navigation Sub-header -->
+        <div class="flex items-center gap-6 text-sm font-medium border-b border-slate-800/60 pb-3 mb-5 text-slate-400 overflow-x-auto">
+            <button onclick="switchMainView('teams')" id="subnav-teams" class="hover:text-white transition pb-3 -mb-[13px]">Team Leaderboards</button>
+            <button onclick="switchMainView('individuals')" id="subnav-individuals" class="text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
+            <button class="hover:text-white transition flex items-center gap-1.5 pb-3 -mb-[13px]">
+                Hall of Fame 
+                <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">NEW</span>
+            </button>
+            <button class="hover:text-white transition pb-3 -mb-[13px]">Bans</button>
+        </div>
 
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("[INIT] Supabase client initialized successfully.")
-except Exception as e:
-    print(f"[CRITICAL ERROR] Failed to initialize Supabase client: {e}")
-    raise e
+        <!-- Timeframe Filter Buttons Toolbar -->
+        <div id="timeframe-toolbar" class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
+            <button onclick="setTab('24h')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-24h">24 Hour</button>
+            <button onclick="setTab('60m')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-60m">60 Minute</button>
+            <button onclick="setTab('7d')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-7d">7 Day</button>
+            <button onclick="setTab('monthly')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-monthly">Monthly</button>
+            <button onclick="setTab('alltime')" class="time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm" id="btn-alltime">All-Time</button>
+        </div>
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Accept-Language": "en-US,en;q=0.9"
-}
+        <!-- Leaderboard Main Container Panel -->
+        <div class="bg-[#0e1626] border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
+            
+            <div class="px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 bg-[#0b1120]/50">
+                <h2 id="table-title" class="text-base font-semibold text-slate-200">Individual Leaderboard (All-Time)</h2>
+                
+                <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <label id="flagged-filter-container" class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                        <input type="checkbox" class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
+                        Show flagged racers
+                    </label>
+                </div>
+            </div>
 
-def fetch_tracked_entities():
-    try:
-        response = supabase.table("entities").select("*").execute()
-        return response.data if response.data else []
-    except Exception as e:
-        print(f"[DB ERROR] Exception while fetching entities: {e}")
-        return []
+            <!-- Data Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr id="table-headers" class="bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider">
+                            <th class="py-3 px-4 w-24">Racer</th>
+                            <th class="py-3 px-4"></th>
+                            <th class="py-3 px-4 text-right">Races ▾</th>
+                            <th class="py-3 px-4 text-right">Accuracy ▾</th>
+                            <th class="py-3 px-4 text-right">WPM ▾</th>
+                            <th class="py-3 px-4 text-right">Points ▾</th>
+                            <th class="py-3 px-4 text-right">PPR ▾</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-def register_entity(identifier: str, entity_type: str, name: str = ""):
-    if not identifier:
-        return
-    clean_id = str(identifier).lower().strip()
-    try:
-        payload = {"identifier": clean_id, "type": entity_type}
-        if name:
-            payload["name"] = name
-        supabase.table("entities").upsert(payload, on_conflict="identifier").execute()
-    except Exception as e:
-        print(f"[DB ERROR] Failed to register entity '{clean_id}': {e}")
+        <!-- System Debugger Section -->
+        <div class="mt-8 border border-slate-800/80 rounded-xl overflow-hidden bg-[#0e1626]">
+            <div class="bg-[#0b1120] px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs">
+                <span class="font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    System Debug Log (Auto-Sync)
+                </span>
+                <button onclick="document.getElementById('debug-log').innerHTML=''" class="text-slate-400 hover:text-white transition">Clear</button>
+            </div>
+            <div id="debug-log" class="p-3 space-y-1"></div>
+        </div>
+    </main>
 
-def scrape_team(team_tag: str):
-    clean_tag = str(team_tag).upper().strip()
-    url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
-    print(f"\n[SCRAPE TEAM] Fetching team: '{clean_tag}'")
-    
-    try:
-        res = requests.get(url, headers=HEADERS, timeout=10)
-        if res.status_code != 200:
-            print(f"[FAIL] Could not fetch team '{clean_tag}'")
-            return
-        
-        json_data = res.json()
-        results = json_data.get("results", {})
-        data = results[0] if isinstance(results, list) and results else results
+    <script>
+        const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
 
-        if not data or not isinstance(data, dict):
-            return
+        const logElement = document.getElementById("debug-log");
 
-        info = data.get("info", {}) if isinstance(data.get("info"), dict) else {}
-        stats = data.get("stats", {}) if isinstance(data.get("stats"), dict) else {}
-        members = data.get("members", []) if isinstance(data.get("members"), list) else []
-
-        official_name = info.get("name") or clean_tag
-        register_entity(clean_tag.lower(), "team", official_name)
-
-        races = int(stats.get("alltime_races", info.get("races", 0)))
-        wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0)))
-        accuracy = float(stats.get("avg_acc", info.get("avgAcc", 0)))
-        points = int(stats.get("alltime_points", info.get("points", 0)))
-        ppr = round(points / races, 2) if races > 0 else 0.00
-
-        team_snapshot = {
-            "identifier": clean_tag.lower(),
-            "type": "team",
-            "races": races,
-            "accuracy": accuracy,
-            "wpm": wpm,
-            "points": points,
-            "ppr": ppr,
-            "online_status": True,
-            "membership_status": "team",
-            "car_img_url": "",
-            "title": official_name,
-            "team_tag": clean_tag
+        function log(msg, type = "info") {
+            const time = new Date().toLocaleTimeString();
+            let color = "text-emerald-400";
+            if (type === "warn") color = "text-amber-400";
+            if (type === "error") color = "text-red-400";
+            
+            console.log(`[${time}] [${type.toUpperCase()}] ${msg}`);
+            if (logElement) {
+                logElement.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
         }
 
-        supabase.table("snapshots").insert(team_snapshot).execute()
-
-        print(f"[ROSTER] Processing {len(members)} team members...")
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            
-            m_username = str(member.get("username") or "").lower().strip()
-            if not m_username:
-                continue
-
-            m_display = member.get("displayName") or member.get("username") or m_username
-            register_entity(m_username, "player", m_display)
-
-            m_races = int(member.get("played", member.get("races", 0)))
-            m_wpm = float(member.get("avgSpeed", member.get("wpm", 0)))
-            m_acc = float(member.get("avgAcc", member.get("accuracy", 0)))
-            
-            # Calculate points if API returns 0 (Nitro Type ~100 points per race average)
-            raw_points = int(member.get("points", 0))
-            m_points = raw_points if raw_points > 0 else (m_races * 100)
-            m_ppr = round(m_points / m_races, 2) if m_races > 0 else 0.00
-
-            m_car_id = member.get("carID", 1)
-            m_car_hue = member.get("carHue", 0)
-            
-            # Formatted CDN Car image URL format
-            m_car_url = f"https://www.nitrotype.com/cars/48/{m_car_id}_{m_car_hue}_1.png"
-
-            is_gold = bool(member.get("membership") == "gold" or member.get("isGold"))
-            m_membership = "gold" if is_gold else "basic"
-
-            player_snapshot = {
-                "identifier": m_username,
-                "type": "player",
-                "races": m_races,
-                "accuracy": m_acc,
-                "wpm": m_wpm,
-                "points": m_points,
-                "ppr": m_ppr,
-                "online_status": bool(member.get("online", False)),
-                "membership_status": m_membership,
-                "car_img_url": m_car_url,
-                "title": m_display,
-                "team_tag": clean_tag
+        let db = null;
+        try {
+            if (window.supabase) {
+                db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                log("Supabase client initialized successfully.");
+            } else {
+                log("Failed to load Supabase JS SDK library!", "error");
             }
+        } catch (e) {
+            log(`Client init exception: ${e.message}`, "error");
+        }
 
-            try:
-                supabase.table("snapshots").insert(player_snapshot).execute()
-            except Exception:
-                pass
+        let currentView = "individuals";
+        let currentTab = "alltime";
 
-        print(f"[SUCCESS] Processed team [{clean_tag}] and all member snapshots.")
+        function getTimeframeIso(tab) {
+            const now = new Date();
+            if (tab === '60m') now.setHours(now.getHours() - 1);
+            else if (tab === '24h') now.setHours(now.getHours() - 24);
+            else if (tab === '7d') now.setDate(now.getDate() - 7);
+            else if (tab === 'monthly') now.setDate(now.getDate() - 30);
+            else return null;
+            return now.toISOString();
+        }
 
-    except Exception as e:
-        print(f"[EXCEPTION] Error scraping team '{clean_tag}': {e}")
+        function switchMainView(view) {
+            currentView = view;
+            const btnTeams = document.getElementById("subnav-teams");
+            const btnIndiv = document.getElementById("subnav-individuals");
+            const toolbar = document.getElementById("timeframe-toolbar");
+            const filterContainer = document.getElementById("flagged-filter-container");
 
-def main():
-    start_time = time.time()
-    entities = fetch_tracked_entities()
-    for entity in entities:
-        identifier = entity.get("identifier")
-        entity_type = entity.get("type")
+            if (view === 'teams') {
+                btnTeams.className = "text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                btnIndiv.className = "hover:text-white transition pb-3 -mb-[13px]";
+                toolbar.style.display = "none";
+                filterContainer.style.display = "none";
+                document.getElementById("table-title").innerText = "Team Leaderboard";
+                loadTeamLeaderboard();
+            } else {
+                btnIndiv.className = "text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                btnTeams.className = "hover:text-white transition pb-3 -mb-[13px]";
+                toolbar.style.display = "flex";
+                filterContainer.style.display = "flex";
+                setTab('alltime');
+            }
+        }
 
-        if identifier and entity_type == "team":
-            scrape_team(identifier)
-        time.sleep(0.1)
+        function setTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll(".time-btn").forEach(btn => {
+                btn.className = "time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition";
+            });
+            const activeBtn = document.getElementById(`btn-${tab}`);
+            if (activeBtn) {
+                activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
+            }
+            
+            const titles = {
+                '60m': 'Individual Leaderboard (Last 60 Minutes)',
+                '24h': 'Individual Leaderboard (Last 24 Hours)',
+                '7d': 'Individual Leaderboard (Last 7 Days)',
+                'monthly': 'Individual Leaderboard (Monthly)',
+                'alltime': 'Individual Leaderboard (All-Time)'
+            };
+            
+            document.getElementById("table-title").innerText = titles[tab] || 'Individual Leaderboard';
+            loadLeaderboard();
+        }
 
-    elapsed = round(time.time() - start_time, 2)
-    print(f"\n=== SCRAPE COMPLETED IN {elapsed} SECONDS ===")
+        function getRankBadge(index) {
+            if (index === 0) return `<div class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-bold flex items-center justify-center text-xs shadow">1</div>`;
+            if (index === 1) return `<div class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-bold flex items-center justify-center text-xs shadow">2</div>`;
+            if (index === 2) return `<div class="w-7 h-7 rounded-full bg-amber-700 text-white font-bold flex items-center justify-center text-xs shadow">3</div>`;
+            return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-semibold flex items-center justify-center text-xs">${index + 1}</div>`;
+        }
 
-if __name__ == "__main__":
-    main()
+        async function loadTeamLeaderboard() {
+            const tbody = document.getElementById("leaderboard-body");
+            const theaders = document.getElementById("table-headers");
+            if (!tbody) return;
+
+            theaders.innerHTML = `
+                <th class="py-3 px-4 w-24">Rank</th>
+                <th class="py-3 px-4">Team</th>
+                <th class="py-3 px-4 text-right">Total Races ▾</th>
+                <th class="py-3 px-4 text-right">Avg Accuracy ▾</th>
+                <th class="py-3 px-4 text-right">Avg WPM ▾</th>
+                <th class="py-3 px-4 text-right">Total Points ▾</th>
+            `;
+
+            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">Querying team leaderboards...</td></tr>`;
+
+            if (!db) return;
+
+            try {
+                const { data, error } = await db.from('snapshots')
+                    .select('*')
+                    .eq('type', 'team')
+                    .order('points', { ascending: false })
+                    .limit(50);
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team snapshots found in database yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = "";
+                data.forEach((t, index) => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/30 transition">
+                            <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
+                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.title || t.identifier}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.races || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(t.points || 0).toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                log(`Team view exception: ${err.message}`, "error");
+                tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400 text-xs">Error loading teams: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function loadLeaderboard() {
+            if (currentView !== 'individuals') return;
+            
+            const tbody = document.getElementById("leaderboard-body");
+            const theaders = document.getElementById("table-headers");
+            if (!tbody) return;
+
+            theaders.innerHTML = `
+                <th class="py-3 px-4 w-24">Racer</th>
+                <th class="py-3 px-4"></th>
+                <th class="py-3 px-4 text-right">Races ▾</th>
+                <th class="py-3 px-4 text-right">Accuracy ▾</th>
+                <th class="py-3 px-4 text-right">WPM ▾</th>
+                <th class="py-3 px-4 text-right">Points ▾</th>
+                <th class="py-3 px-4 text-right">PPR ▾</th>
+            `;
+
+            tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">Querying database snapshots...</td></tr>`;
+
+            if (!db) return;
+
+            try {
+                let query = db.from('snapshots').select('*').eq('type', 'player');
+                
+                const timeframeIso = getTimeframeIso(currentTab);
+                if (timeframeIso) {
+                    query = query.gte('captured_at', timeframeIso);
+                }
+
+                const { data, error } = await query.order('points', { ascending: false }).limit(50);
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No player records found for this timeframe. Run your GitHub Action scraper!</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = "";
+                data.forEach((p, index) => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/30 transition">
+                            <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-8 bg-slate-900 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                        <img src="${p.car_img_url || ''}" alt="car" class="max-h-full object-contain" onerror="this.style.display='none'"/>
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-sky-300 text-sm flex items-center gap-1.5">
+                                            <span class="text-slate-500 text-xs">${p.team_tag ? '[' + p.team_tag + ']' : ''}</span>
+                                            ${p.identifier || 'Unknown Racer'}
+                                        </div>
+                                        <div class="text-[11px] text-slate-500 italic">${p.title || 'Nitro Racer'}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.races || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(p.points || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
+                        </tr>
+                    `;
+                });
+
+            } catch (err) {
+                log(`JavaScript runtime exception: ${err.message}`, "error");
+                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Query error: ${err.message}</td></tr>`;
+            }
+        }
+
+        loadLeaderboard();
+
+        setInterval(() => {
+            log("Auto-refreshing data from Supabase...");
+            if (currentView === 'teams') {
+                loadTeamLeaderboard();
+            } else {
+                loadLeaderboard();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
