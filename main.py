@@ -130,7 +130,7 @@ def scrape_player(username: str):
         print(f"[EXCEPTION] Error occurred while scraping player '{clean_username}': {e}")
 
 def scrape_team(team_tag: str):
-    clean_tag = team_tag.lower().strip()
+    clean_tag = team_tag.upper().strip()
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
     print(f"\n[SCRAPE TEAM] Requesting Nitro Type API for team tag: '{clean_tag}' -> URL: {url}")
     
