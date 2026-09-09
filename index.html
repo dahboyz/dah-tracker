@@ -48,7 +48,7 @@
             <button class="hover:text-white transition pb-3 -mb-[13px]">Bans</button>
         </div>
 
-        <!-- Timeframe Filter Buttons Toolbar (Only shown for individuals) -->
+        <!-- Timeframe Filter Buttons Toolbar -->
         <div id="timeframe-toolbar" class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
             <button onclick="setTab('24h')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-24h">24 Hour</button>
             <button onclick="setTab('season')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-season">Season</button>
@@ -71,14 +71,12 @@
                 <h2 id="table-title" class="text-base font-semibold text-slate-200">Individual Leaderboard (All-Time)</h2>
                 
                 <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                    <!-- Team Filter Dropdown -->
                     <div class="relative">
                         <select class="bg-[#131b2e] border border-slate-700/80 text-slate-300 text-xs rounded-lg px-3 py-2 outline-none focus:border-sky-500 cursor-pointer">
                             <option>All Teams</option>
                         </select>
                     </div>
 
-                    <!-- Flagged Racers Toggle Checkbox -->
                     <label id="flagged-filter-container" class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
                         <input type="checkbox" class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
                         Show flagged racers
@@ -101,9 +99,7 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
-                        <tr>
-                            <td colspan="7" class="p-12 text-center text-slate-500">Connecting to database...</td>
-                        </tr>
+                        <!-- Dynamically populated from Supabase. No hardcoded mock data. -->
                     </tbody>
                 </table>
             </div>
@@ -153,7 +149,7 @@
             log(`Client init exception: ${e.message}`, "error");
         }
 
-        let currentView = "individuals"; // 'individuals' or 'teams'
+        let currentView = "individuals";
         let currentTab = "alltime";
 
         function switchMainView(view) {
@@ -228,29 +224,22 @@
                 <th class="py-3 px-4 text-right">Total Points ▾</th>
             `;
 
-            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">Querying team leaderboards...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">Querying team leaderboards from Supabase...</td></tr>`;
 
             if (!db) return;
 
             try {
-                // Adjust table name if your team schema uses a different table name (e.g., 'team_leaderboard_deltas' or 'teams')
-                let { data, error } = await db.from('team_leaderboard_deltas').select('*').order('alltime_points', { ascending: false }).limit(50);
+                // Change 'teams' here to whatever your exact team table name is in Supabase if it differs
+                const { data, error } = await db.from('teams').select('*').order('alltime_points', { ascending: false }).limit(50);
 
                 if (error) {
-                    log(`Team query error: ${error.message}. Trying alternative 'teams' table...`, "warn");
-                    // Fallback attempt if table name differs
-                    let altQuery = await db.from('teams').select('*').limit(50);
-                    data = altQuery.data;
-                    error = altQuery.error;
-                }
-
-                if (error) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400 text-xs">Could not load teams: ${error.message}</td></tr>`;
+                    log(`Team query error: ${error.message}`, "error");
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400 text-xs">Error loading teams: ${error.message}</td></tr>`;
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No teams found in database yet.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team records found in database.</td></tr>`;
                     return;
                 }
 
@@ -259,7 +248,7 @@
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
-                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.name || t.team_name || t.identifier || 'Unknown Team'}</td>
+                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.name || t.team_name || t.identifier || 'Team'}</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.alltime_races || t.races || 0).toLocaleString()}</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
@@ -313,7 +302,7 @@
                 }
 
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No racer records found for this timeframe yet. Waiting for backend 5-min scraper update...</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No racer records found in Supabase yet. Run your backend scraper to populate data!</td></tr>`;
                     return;
                 }
 
@@ -322,6 +311,7 @@
                     const displayRaces = currentTab === '60m' ? p.races_60m : (currentTab === '24h' ? p.races_24h : p.alltime_races);
                     const displayPoints = currentTab === '60m' ? p.points_60m : (currentTab === '24h' ? p.points_24h : p.alltime_points);
 
+                    tbody.innerHTML = ""; // Clear loader once data begins rendering
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
@@ -353,10 +343,8 @@
             }
         }
 
-        // Initial fetch on page load
         loadLeaderboard();
 
-        // Auto-refresh data every 60 seconds
         setInterval(() => {
             log("Auto-refreshing data from Supabase...");
             if (currentView === 'teams') {
