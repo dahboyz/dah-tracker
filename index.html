@@ -99,7 +99,7 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
-                        <!-- Dynamically populated from Supabase. No hardcoded mock data. -->
+                        <!-- Loaded dynamically from Supabase snapshots table -->
                     </tbody>
                 </table>
             </div>
@@ -229,8 +229,11 @@
             if (!db) return;
 
             try {
-                // Change 'teams' here to whatever your exact team table name is in Supabase if it differs
-                const { data, error } = await db.from('teams').select('*').order('alltime_points', { ascending: false }).limit(50);
+                const { data, error } = await db.from('snapshots')
+                    .select('*')
+                    .eq('type', 'team')
+                    .order('points', { ascending: false })
+                    .limit(50);
 
                 if (error) {
                     log(`Team query error: ${error.message}`, "error");
@@ -239,7 +242,7 @@
                 }
 
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team records found in database.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team snapshots found in database yet.</td></tr>`;
                     return;
                 }
 
@@ -248,11 +251,11 @@
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
-                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.name || t.team_name || t.identifier || 'Team'}</td>
-                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.alltime_races || t.races || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.title || t.identifier}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.races || 0).toLocaleString()}</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
-                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(t.alltime_points || t.points || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(t.points || 0).toLocaleString()}</td>
                         </tr>
                     `;
                 });
@@ -283,17 +286,11 @@
             if (!db) return;
 
             try {
-                let query = db.from('player_leaderboard_deltas').select('*');
-
-                if (currentTab === '60m') {
-                    query = query.order('points_60m', { ascending: false }).limit(50);
-                } else if (currentTab === '24h') {
-                    query = query.order('points_24h', { ascending: false }).limit(50);
-                } else {
-                    query = query.order('alltime_points', { ascending: false }).limit(50);
-                }
-
-                const { data, error } = await query;
+                const { data, error } = await db.from('snapshots')
+                    .select('*')
+                    .eq('type', 'player')
+                    .order('points', { ascending: false })
+                    .limit(50);
 
                 if (error) {
                     log(`Database Query Error: ${error.message}`, "error");
@@ -302,38 +299,34 @@
                 }
 
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No racer records found in Supabase yet. Run your backend scraper to populate data!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No player records found in Supabase yet. Run your GitHub Action scraper!</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = "";
                 data.forEach((p, index) => {
-                    const displayRaces = currentTab === '60m' ? p.races_60m : (currentTab === '24h' ? p.races_24h : p.alltime_races);
-                    const displayPoints = currentTab === '60m' ? p.points_60m : (currentTab === '24h' ? p.points_24h : p.alltime_points);
-
-                    tbody.innerHTML = ""; // Clear loader once data begins rendering
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center gap-3">
                                     <div class="w-12 h-8 bg-slate-900 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
-                                        <span class="text-[10px] text-slate-500">🏎️</span>
+                                        <img src="${p.car_img_url || ''}" alt="car" class="max-h-full object-contain" onerror="this.src=''"/>
                                     </div>
                                     <div>
                                         <div class="font-semibold text-sky-300 text-sm flex items-center gap-1.5">
                                             <span class="text-slate-500 text-xs">${p.team_tag ? '[' + p.team_tag + ']' : ''}</span>
                                             ${p.identifier || 'Unknown Racer'}
                                         </div>
-                                        <div class="text-[11px] text-slate-500 italic">"Nitro Racer"</div>
+                                        <div class="text-[11px] text-slate-500 italic">${p.title || 'Nitro Racer'}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(displayRaces || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.races || 0).toLocaleString()}</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
-                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(displayPoints || 0).toLocaleString()}</td>
-                            <td class="py-3 px-4 text-right font-mono text-slate-300">145</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(p.points || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
                         </tr>
                     `;
                 });
