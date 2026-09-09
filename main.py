@@ -82,12 +82,12 @@ def scrape_player(username: str):
         else:
             data = results
 
-        if not data:
-            print(f"[WARN] Player API response has no valid data for '{clean_username}'. Raw JSON: {str(json_data)[:300]}")
+        if not data or not isinstance(data, dict):
+            print(f"[WARN] Player API response has no valid data for '{clean_username}'.")
             return
 
-        profile = data.get("profile", {})
-        stats = data.get("stats", {})
+        profile = data.get("profile", {}) if isinstance(data.get("profile"), dict) else {}
+        stats = data.get("stats", {}) if isinstance(data.get("stats"), dict) else {}
 
         races = int(stats.get("races", profile.get("races", 0)))
         wpm = float(stats.get("wpm", profile.get("avgSpeed", 0)))
@@ -156,23 +156,23 @@ def scrape_team(team_tag: str):
         else:
             data = results
 
-        if not data:
-            print(f"[WARN] Team API response has no valid data for '{clean_tag}'. Raw JSON: {str(json_data)[:300]}")
+        if not data or not isinstance(data, dict):
+            print(f"[WARN] Team API response has no valid data for '{clean_tag}'.")
             return
 
-        info = data.get("info", {})
-        stats = data.get("stats", {})
-        members = data.get("members", [])
+        info = data.get("info", {}) if isinstance(data.get("info"), dict) else {}
+        stats = data.get("stats", {}) if isinstance(data.get("stats"), dict) else {}
+        members = data.get("members", []) if isinstance(data.get("members"), list) else []
 
         official_team_name = info.get("name") or clean_tag
         print(f"[PARSED TEAM] Official Name: {official_team_name} | Total Members Found in API: {len(members)}")
 
         register_entity(clean_tag.lower(), "team", official_team_name)
 
-        races = int(stats.get("alltime_races", info.get("races", 0)))
-        wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0)))
-        accuracy = float(stats.get("avg_acc", info.get("avgAcc", 0)))
-        points = int(stats.get("alltime_points", info.get("points", 0)))
+        races = int(stats.get("alltime_races", info.get("races", 0))) if isinstance(stats, dict) else int(info.get("races", 0))
+        wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0))) if isinstance(stats, dict) else float(info.get("avgSpeed", 0))
+        accuracy = float(stats.get("avg_acc", info.get("avgAcc", 0))) if isinstance(stats, dict) else float(info.get("avgAcc", 0))
+        points = int(stats.get("alltime_points", info.get("points", 0))) if isinstance(stats, dict) else int(info.get("points", 0))
         ppr = round(points / races, 2) if races > 0 else 0.00
 
         snapshot = {
@@ -196,13 +196,11 @@ def scrape_team(team_tag: str):
 
         print(f"[AUTO-DISCOVERY] Processing roster members for team [{clean_tag}]...")
         for member in members:
-            m_username = member.get("username", "")
-            m_display = member.get("displayName", m_username)
+            m_username = member.get("username", "") if isinstance(member, dict) else ""
+            m_display = member.get("displayName", m_username) if isinstance(member, dict) else ""
             if m_username:
                 print(f"   -> Discovered team member: username='{m_username}', display='{m_display}'")
                 register_entity(m_username, "player", m_display)
-            else:
-                print(f"   -> Skipped member entry because username was blank: {member}")
 
     except Exception as e:
         print(f"[EXCEPTION] Error occurred while scraping team '{clean_tag}': {e}")
@@ -232,7 +230,7 @@ def main():
         time.sleep(0.2)
 
     print("\n--- BEGIN PASS 2: SCRAPING AUTO-DISCOVERED TEAM MEMBERS ---")
-    updated_entities = fetch_entities_pass2 = fetch_tracked_entities()
+    updated_entities = fetch_tracked_entities()
     already_scraped = {e.get("identifier") for e in initial_entities if e.get("type") == "player"}
     
     new_players = [
