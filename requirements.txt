@@ -1,0 +1,7 @@
+requests==2.31.0
+supabase==2.3.0
+postgrest==0.16.0
+gotrue==2.4.2
+realtime==1.0.0
+storage3==0.7.2
+httpx==0.26.0
