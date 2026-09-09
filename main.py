@@ -3,7 +3,7 @@ import time
 import requests
 from supabase import create_client, Client
 
-print("=== STARTING NITRO TYPE SCRAPER (DEBUG MODE) ===")
+print("=== STARTING NITRO TYPE SCRAPER (OPTIMIZED MODE) ===")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -11,8 +11,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("[CRITICAL ERROR] Missing SUPABASE_URL or SUPABASE_KEY environment variables!")
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables.")
-else:
-    print(f"[INIT] Supabase URL detected: {SUPABASE_URL[:15]}...")
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -31,57 +29,40 @@ def fetch_tracked_entities():
     print("[DB] Fetching entities from 'entities' table...")
     try:
         response = supabase.table("entities").select("*").execute()
-        entities = response.data if response.data else []
-        print(f"[DB SUCCESS] Found {len(entities)} entities registered in database.")
-        return entities
+        return response.data if response.data else []
     except Exception as e:
         print(f"[DB ERROR] Exception while fetching entities: {e}")
         return []
 
 def register_entity(identifier: str, entity_type: str, name: str = ""):
     if not identifier:
-        print("[WARN] Attempted to register empty identifier. Skipped.")
         return
     clean_id = str(identifier).lower().strip()
     try:
-        payload = {
-            "identifier": clean_id,
-            "type": entity_type
-        }
+        payload = {"identifier": clean_id, "type": entity_type}
         if name:
             payload["name"] = name
 
-        supabase.table("entities").upsert(
-            payload,
-            on_conflict="identifier"
-        ).execute()
-        print(f"[DB UPSERT] Successfully registered/updated entity -> type: {entity_type}, identifier: {clean_id}")
+        supabase.table("entities").upsert(payload, on_conflict="identifier").execute()
     except Exception as e:
-        print(f"[DB ERROR] Failed to register entity '{clean_id}' ({entity_type}): {e}")
+        print(f"[DB ERROR] Failed to register entity '{clean_id}': {e}")
 
-def scrape_player(user_id: str):
-    clean_id = str(user_id).lower().strip()
+def scrape_player(user_identifier: str):
+    clean_id = str(user_identifier).lower().strip()
     url = f"https://www.nitrotype.com/api/v2/u/{clean_id}"
-    print(f"\n[SCRAPE PLAYER] Requesting Nitro Type API for player: '{clean_id}' -> URL: {url}")
+    print(f"\n[SCRAPE PLAYER] Requesting Nitro Type API for: '{clean_id}'")
     
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
-        print(f"[HTTP RESPONSE] Player '{clean_id}' status code: {res.status_code}")
-        
         if res.status_code != 200:
-            print(f"[FAIL] Could not fetch player '{clean_id}'. Response text: {res.text[:200]}")
+            print(f"[WARN] Skipping invalid/hash player '{clean_id}' (HTTP {res.status_code})")
             return
         
         json_data = res.json()
         results = json_data.get("results", {})
-        
-        if isinstance(results, list):
-            data = results[0] if len(results) > 0 else {}
-        else:
-            data = results
+        data = results[0] if isinstance(results, list) and results else results
 
         if not data or not isinstance(data, dict):
-            print(f"[WARN] Player API response has no valid data for '{clean_id}'.")
             return
 
         profile = data.get("profile", {}) if isinstance(data.get("profile"), dict) else {}
@@ -91,25 +72,19 @@ def scrape_player(user_id: str):
         wpm = float(stats.get("wpm", profile.get("avgSpeed", 0)))
         accuracy = float(stats.get("accuracy", profile.get("avgAcc", 0)))
         points = int(stats.get("points", profile.get("points", 0)))
-        
         ppr = round(points / races, 2) if races > 0 else 0.00
+
         online_status = bool(profile.get("online", False) or profile.get("isActive", False))
-        
         membership = profile.get("membership", "")
         is_gold = profile.get("isGold", False) or profile.get("gold", False)
         membership_status = "gold" if (membership == "gold" or is_gold) else "basic"
-        
+
         car_id = profile.get("carID", 1)
         car_hue = profile.get("carHue", 0)
         car_img_url = f"https://www.nitrotype.com/cars/48/{car_id}_{car_hue}.png"
-        
-        title = profile.get("title", "")
-        team_tag = profile.get("tag", "")
+
         display_name = profile.get("displayName", profile.get("username", clean_id))
-
-        print(f"[PARSED PLAYER] Name: {display_name} | Races: {races} | WPM: {wpm} | Points: {points} | Gold: {membership_status == 'gold'} | Team: {team_tag}")
-
-        register_entity(clean_id, "player", display_name)
+        team_tag = profile.get("tag", "")
 
         snapshot = {
             "identifier": clean_id,
@@ -122,50 +97,40 @@ def scrape_player(user_id: str):
             "online_status": online_status,
             "membership_status": membership_status,
             "car_img_url": car_img_url,
-            "title": title,
+            "title": profile.get("title", ""),
             "team_tag": team_tag
         }
 
-        print(f"[DB INSERT] Inserting player snapshot for '{clean_id}' into 'snapshots' table...")
         supabase.table("snapshots").insert(snapshot).execute()
-        print(f"[DB INSERT SUCCESS] Player snapshot saved for '{clean_id}'.")
+        print(f"[SUCCESS] Player snapshot inserted for '{display_name}' ({clean_id})")
 
     except Exception as e:
-        print(f"[EXCEPTION] Error occurred while scraping player '{clean_id}': {e}")
+        print(f"[EXCEPTION] Error scraping player '{clean_id}': {e}")
 
 def scrape_team(team_tag: str):
     clean_tag = str(team_tag).upper().strip()
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
-    print(f"\n[SCRAPE TEAM] Requesting Nitro Type API for team tag: '{clean_tag}' -> URL: {url}")
+    print(f"\n[SCRAPE TEAM] Requesting team: '{clean_tag}'")
     
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
-        print(f"[HTTP RESPONSE] Team '{clean_tag}' status code: {res.status_code}")
-        
         if res.status_code != 200:
-            print(f"[FAIL] Could not fetch team '{clean_tag}'. Response text: {res.text[:200]}")
+            print(f"[FAIL] Could not fetch team '{clean_tag}'")
             return
         
         json_data = res.json()
         results = json_data.get("results", {})
-        
-        if isinstance(results, list):
-            data = results[0] if len(results) > 0 else {}
-        else:
-            data = results
+        data = results[0] if isinstance(results, list) and results else results
 
         if not data or not isinstance(data, dict):
-            print(f"[WARN] Team API response has no valid data for '{clean_tag}'.")
             return
 
         info = data.get("info", {}) if isinstance(data.get("info"), dict) else {}
         stats = data.get("stats", {}) if isinstance(data.get("stats"), dict) else {}
         members = data.get("members", []) if isinstance(data.get("members"), list) else []
 
-        official_team_name = info.get("name") or clean_tag
-        print(f"[PARSED TEAM] Official Name: {official_team_name} | Total Members Found in API: {len(members)}")
-
-        register_entity(clean_tag.lower(), "team", official_team_name)
+        official_name = info.get("name") or clean_tag
+        register_entity(clean_tag.lower(), "team", official_name)
 
         races = int(stats.get("alltime_races", info.get("races", 0))) if isinstance(stats, dict) else int(info.get("races", 0))
         wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0))) if isinstance(stats, dict) else float(info.get("avgSpeed", 0))
@@ -173,7 +138,7 @@ def scrape_team(team_tag: str):
         points = int(stats.get("alltime_points", info.get("points", 0))) if isinstance(stats, dict) else int(info.get("points", 0))
         ppr = round(points / races, 2) if races > 0 else 0.00
 
-        snapshot = {
+        team_snapshot = {
             "identifier": clean_tag.lower(),
             "type": "team",
             "races": races,
@@ -184,69 +149,83 @@ def scrape_team(team_tag: str):
             "online_status": True,
             "membership_status": "team",
             "car_img_url": "",
-            "title": official_team_name,
+            "title": official_name,
             "team_tag": clean_tag
         }
 
-        print(f"[DB INSERT] Inserting team snapshot for '{clean_tag.lower()}' into 'snapshots' table...")
-        supabase.table("snapshots").insert(snapshot).execute()
-        print(f"[DB INSERT SUCCESS] Team snapshot saved for '{clean_tag.lower()}'.")
+        supabase.table("snapshots").insert(team_snapshot).execute()
+        print(f"[SUCCESS] Team snapshot saved for [{clean_tag}] {official_name}")
 
-        print(f"[AUTO-DISCOVERY] Processing roster members for team [{clean_tag}]...")
+        print(f"[ROSTER BATCH] Direct-processing {len(members)} team members...")
         for member in members:
-            if isinstance(member, dict):
-                m_id = member.get("userID") or member.get("username") or ""
-                m_display = member.get("displayName", member.get("username", str(m_id)))
-                if m_id:
-                    print(f"   -> Discovered team member: ID='{m_id}', display='{m_display}'")
-                    register_entity(str(m_id), "player", m_display)
+            if not isinstance(member, dict):
+                continue
+            
+            m_username = str(member.get("username") or "").lower().strip()
+            if not m_username:
+                continue
+
+            m_display = member.get("displayName", m_username)
+            register_entity(m_username, "player", m_display)
+
+            m_races = int(member.get("played", member.get("races", 0)))
+            m_wpm = float(member.get("avgSpeed", member.get("wpm", 0)))
+            m_acc = float(member.get("avgAcc", member.get("accuracy", 0)))
+            m_points = int(member.get("points", 0))
+            m_ppr = round(m_points / m_races, 2) if m_races > 0 else 0.00
+
+            m_car_id = member.get("carID", 1)
+            m_car_hue = member.get("carHue", 0)
+            m_car_url = f"https://www.nitrotype.com/cars/48/{m_car_id}_{m_car_hue}.png"
+
+            m_membership = "gold" if (member.get("membership") == "gold" or member.get("isGold")) else "basic"
+
+            player_snapshot = {
+                "identifier": m_username,
+                "type": "player",
+                "races": m_races,
+                "accuracy": m_acc,
+                "wpm": m_wpm,
+                "points": m_points,
+                "ppr": m_ppr,
+                "online_status": bool(member.get("online", False)),
+                "membership_status": m_membership,
+                "car_img_url": m_car_url,
+                "title": member.get("title", ""),
+                "team_tag": clean_tag
+            }
+
+            try:
+                supabase.table("snapshots").insert(player_snapshot).execute()
+            except Exception as insert_err:
+                pass
+
+        print(f"[ROSTER SUCCESS] Processed all members for team [{clean_tag}]!")
 
     except Exception as e:
-        print(f"[EXCEPTION] Error occurred while scraping team '{clean_tag}': {e}")
+        print(f"[EXCEPTION] Error scraping team '{clean_tag}': {e}")
 
 def main():
     start_time = time.time()
     print("\n--- BEGIN PASS 1: PROCESSING REGISTERED ENTITIES ---")
     
-    initial_entities = fetch_tracked_entities()
-    if not initial_entities:
-        print("[CRITICAL WARNING] Pass 1 found 0 entities in the 'entities' table!")
-
-    for idx, entity in enumerate(initial_entities):
+    entities = fetch_tracked_entities()
+    for idx, entity in enumerate(entities):
         identifier = entity.get("identifier")
         entity_type = entity.get("type")
-
-        print(f"\n--- Processing Entity [{idx+1}/{len(initial_entities)}] | Type: {entity_type} | ID: {identifier} ---")
 
         if not identifier:
             continue
 
-        if entity_type == "player":
-            scrape_player(identifier)
-        elif entity_type == "team":
+        if entity_type == "team":
             scrape_team(identifier)
+        elif entity_type == "player":
+            scrape_player(identifier)
 
-        time.sleep(0.2)
-
-    print("\n--- BEGIN PASS 2: SCRAPING AUTO-DISCOVERED TEAM MEMBERS ---")
-    updated_entities = fetch_tracked_entities()
-    already_scraped = {str(e.get("identifier")).lower() for e in initial_entities if e.get("type") == "player"}
-    
-    new_players = [
-        str(e.get("identifier")) for e in updated_entities 
-        if e.get("type") == "player" and str(e.get("identifier")).lower() not in already_scraped
-    ]
-
-    print(f"[INFO] Found {len(new_players)} newly discovered players to scrape in Pass 2.")
-
-    if new_players:
-        for idx, user_id in enumerate(new_players):
-            print(f"\n--- Scraping New Player [{idx+1}/{len(new_players)}] | ID: {user_id} ---")
-            scrape_player(user_id)
-            time.sleep(0.2)
+        time.sleep(0.1)
 
     elapsed = round(time.time() - start_time, 2)
-    print(f"\n=== SCRAPE PASS COMPLETED SUCCESSFULLY IN {elapsed} SECONDS ===")
+    print(f"\n=== SCRAPE PASS COMPLETED IN {elapsed} SECONDS ===")
 
 if __name__ == "__main__":
     main()
