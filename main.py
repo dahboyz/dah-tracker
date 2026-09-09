@@ -75,9 +75,15 @@ def scrape_player(username: str):
             return
         
         json_data = res.json()
-        data = json_data.get("results", {})
+        results = json_data.get("results", {})
+        
+        if isinstance(results, list):
+            data = results[0] if len(results) > 0 else {}
+        else:
+            data = results
+
         if not data:
-            print(f"[WARN] Player API response JSON has no 'results' key for '{clean_username}'. Raw JSON: {str(json_data)[:300]}")
+            print(f"[WARN] Player API response has no valid data for '{clean_username}'. Raw JSON: {str(json_data)[:300]}")
             return
 
         profile = data.get("profile", {})
@@ -123,7 +129,7 @@ def scrape_player(username: str):
         }
 
         print(f"[DB INSERT] Inserting player snapshot for '{clean_username}' into 'snapshots' table...")
-        insert_res = supabase.table("snapshots").insert(snapshot).execute()
+        supabase.table("snapshots").insert(snapshot).execute()
         print(f"[DB INSERT SUCCESS] Player snapshot saved for '{clean_username}'.")
 
     except Exception as e:
@@ -143,19 +149,25 @@ def scrape_team(team_tag: str):
             return
         
         json_data = res.json()
-        data = json_data.get("results", {})
+        results = json_data.get("results", {})
+        
+        if isinstance(results, list):
+            data = results[0] if len(results) > 0 else {}
+        else:
+            data = results
+
         if not data:
-            print(f"[WARN] Team API response JSON has no 'results' key for '{clean_tag}'. Raw JSON: {str(json_data)[:300]}")
+            print(f"[WARN] Team API response has no valid data for '{clean_tag}'. Raw JSON: {str(json_data)[:300]}")
             return
 
         info = data.get("info", {})
         stats = data.get("stats", {})
         members = data.get("members", [])
 
-        official_team_name = info.get("name") or clean_tag.upper()
+        official_team_name = info.get("name") or clean_tag
         print(f"[PARSED TEAM] Official Name: {official_team_name} | Total Members Found in API: {len(members)}")
 
-        register_entity(clean_tag, "team", official_team_name)
+        register_entity(clean_tag.lower(), "team", official_team_name)
 
         races = int(stats.get("alltime_races", info.get("races", 0)))
         wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0)))
@@ -164,7 +176,7 @@ def scrape_team(team_tag: str):
         ppr = round(points / races, 2) if races > 0 else 0.00
 
         snapshot = {
-            "identifier": clean_tag,
+            "identifier": clean_tag.lower(),
             "type": "team",
             "races": races,
             "accuracy": accuracy,
@@ -175,14 +187,14 @@ def scrape_team(team_tag: str):
             "membership_status": "team",
             "car_img_url": "",
             "title": official_team_name,
-            "team_tag": clean_tag.upper()
+            "team_tag": clean_tag
         }
 
-        print(f"[DB INSERT] Inserting team snapshot for '{clean_tag}' into 'snapshots' table...")
+        print(f"[DB INSERT] Inserting team snapshot for '{clean_tag.lower()}' into 'snapshots' table...")
         supabase.table("snapshots").insert(snapshot).execute()
-        print(f"[DB INSERT SUCCESS] Team snapshot saved for '{clean_tag}'.")
+        print(f"[DB INSERT SUCCESS] Team snapshot saved for '{clean_tag.lower()}'.")
 
-        print(f"[AUTO-DISCOVERY] Processing roster members for team [{clean_tag.upper()}]...")
+        print(f"[AUTO-DISCOVERY] Processing roster members for team [{clean_tag}]...")
         for member in members:
             m_username = member.get("username", "")
             m_display = member.get("displayName", m_username)
@@ -201,7 +213,7 @@ def main():
     
     initial_entities = fetch_tracked_entities()
     if not initial_entities:
-        print("[CRITICAL WARNING] Pass 1 found 0 entities in the 'entities' table! Did you forget to insert teams or did the table wipe fail?")
+        print("[CRITICAL WARNING] Pass 1 found 0 entities in the 'entities' table!")
 
     for idx, entity in enumerate(initial_entities):
         identifier = entity.get("identifier")
@@ -210,20 +222,17 @@ def main():
         print(f"\n--- Processing Entity [{idx+1}/{len(initial_entities)}] | Type: {entity_type} | ID: {identifier} ---")
 
         if not identifier:
-            print("[WARN] Entity identifier is null or empty. Skipping.")
             continue
 
         if entity_type == "player":
             scrape_player(identifier)
         elif entity_type == "team":
             scrape_team(identifier)
-        else:
-            print(f"[WARN] Unknown entity type '{entity_type}' for identifier '{identifier}'. Skipping.")
 
-        time.sleep(0.2) # Small polite delay between requests
+        time.sleep(0.2)
 
     print("\n--- BEGIN PASS 2: SCRAPING AUTO-DISCOVERED TEAM MEMBERS ---")
-    updated_entities = fetch_tracked_entities()
+    updated_entities = fetch_entities_pass2 = fetch_tracked_entities()
     already_scraped = {e.get("identifier") for e in initial_entities if e.get("type") == "player"}
     
     new_players = [
@@ -238,8 +247,6 @@ def main():
             print(f"\n--- Scraping New Player [{idx+1}/{len(new_players)}] | Username: {username} ---")
             scrape_player(username)
             time.sleep(0.2)
-    else:
-        print("[INFO] No new unique players found to scrape in Pass 2.")
 
     elapsed = round(time.time() - start_time, 2)
     print(f"\n=== SCRAPE PASS COMPLETED SUCCESSFULLY IN {elapsed} SECONDS ===")
