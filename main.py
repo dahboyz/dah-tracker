@@ -33,8 +33,6 @@ def fetch_tracked_entities():
         response = supabase.table("entities").select("*").execute()
         entities = response.data if response.data else []
         print(f"[DB SUCCESS] Found {len(entities)} entities registered in database.")
-        for idx, ent in enumerate(entities):
-            print(f"   -> Entity {idx+1}: type='{ent.get('type')}', identifier='{ent.get('identifier')}'")
         return entities
     except Exception as e:
         print(f"[DB ERROR] Exception while fetching entities: {e}")
@@ -44,7 +42,7 @@ def register_entity(identifier: str, entity_type: str, name: str = ""):
     if not identifier:
         print("[WARN] Attempted to register empty identifier. Skipped.")
         return
-    clean_id = identifier.lower().strip()
+    clean_id = str(identifier).lower().strip()
     try:
         payload = {
             "identifier": clean_id,
@@ -53,7 +51,7 @@ def register_entity(identifier: str, entity_type: str, name: str = ""):
         if name:
             payload["name"] = name
 
-        res = supabase.table("entities").upsert(
+        supabase.table("entities").upsert(
             payload,
             on_conflict="identifier"
         ).execute()
@@ -61,17 +59,17 @@ def register_entity(identifier: str, entity_type: str, name: str = ""):
     except Exception as e:
         print(f"[DB ERROR] Failed to register entity '{clean_id}' ({entity_type}): {e}")
 
-def scrape_player(username: str):
-    clean_username = username.lower().strip()
-    url = f"https://www.nitrotype.com/api/v2/u/{clean_username}"
-    print(f"\n[SCRAPE PLAYER] Requesting Nitro Type API for player: '{clean_username}' -> URL: {url}")
+def scrape_player(user_id: str):
+    clean_id = str(user_id).lower().strip()
+    url = f"https://www.nitrotype.com/api/v2/u/{clean_id}"
+    print(f"\n[SCRAPE PLAYER] Requesting Nitro Type API for player: '{clean_id}' -> URL: {url}")
     
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
-        print(f"[HTTP RESPONSE] Player '{clean_username}' status code: {res.status_code}")
+        print(f"[HTTP RESPONSE] Player '{clean_id}' status code: {res.status_code}")
         
         if res.status_code != 200:
-            print(f"[FAIL] Could not fetch player '{clean_username}'. Response text: {res.text[:200]}")
+            print(f"[FAIL] Could not fetch player '{clean_id}'. Response text: {res.text[:200]}")
             return
         
         json_data = res.json()
@@ -83,7 +81,7 @@ def scrape_player(username: str):
             data = results
 
         if not data or not isinstance(data, dict):
-            print(f"[WARN] Player API response has no valid data for '{clean_username}'.")
+            print(f"[WARN] Player API response has no valid data for '{clean_id}'.")
             return
 
         profile = data.get("profile", {}) if isinstance(data.get("profile"), dict) else {}
@@ -107,14 +105,14 @@ def scrape_player(username: str):
         
         title = profile.get("title", "")
         team_tag = profile.get("tag", "")
-        display_name = profile.get("displayName", clean_username)
+        display_name = profile.get("displayName", profile.get("username", clean_id))
 
         print(f"[PARSED PLAYER] Name: {display_name} | Races: {races} | WPM: {wpm} | Points: {points} | Gold: {membership_status == 'gold'} | Team: {team_tag}")
 
-        register_entity(clean_username, "player", display_name)
+        register_entity(clean_id, "player", display_name)
 
         snapshot = {
-            "identifier": clean_username,
+            "identifier": clean_id,
             "type": "player",
             "races": races,
             "accuracy": accuracy,
@@ -128,15 +126,15 @@ def scrape_player(username: str):
             "team_tag": team_tag
         }
 
-        print(f"[DB INSERT] Inserting player snapshot for '{clean_username}' into 'snapshots' table...")
+        print(f"[DB INSERT] Inserting player snapshot for '{clean_id}' into 'snapshots' table...")
         supabase.table("snapshots").insert(snapshot).execute()
-        print(f"[DB INSERT SUCCESS] Player snapshot saved for '{clean_username}'.")
+        print(f"[DB INSERT SUCCESS] Player snapshot saved for '{clean_id}'.")
 
     except Exception as e:
-        print(f"[EXCEPTION] Error occurred while scraping player '{clean_username}': {e}")
+        print(f"[EXCEPTION] Error occurred while scraping player '{clean_id}': {e}")
 
 def scrape_team(team_tag: str):
-    clean_tag = team_tag.upper().strip()
+    clean_tag = str(team_tag).upper().strip()
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
     print(f"\n[SCRAPE TEAM] Requesting Nitro Type API for team tag: '{clean_tag}' -> URL: {url}")
     
@@ -196,11 +194,12 @@ def scrape_team(team_tag: str):
 
         print(f"[AUTO-DISCOVERY] Processing roster members for team [{clean_tag}]...")
         for member in members:
-            m_username = member.get("username", "") if isinstance(member, dict) else ""
-            m_display = member.get("displayName", m_username) if isinstance(member, dict) else ""
-            if m_username:
-                print(f"   -> Discovered team member: username='{m_username}', display='{m_display}'")
-                register_entity(m_username, "player", m_display)
+            if isinstance(member, dict):
+                m_id = member.get("userID") or member.get("username") or ""
+                m_display = member.get("displayName", member.get("username", str(m_id)))
+                if m_id:
+                    print(f"   -> Discovered team member: ID='{m_id}', display='{m_display}'")
+                    register_entity(str(m_id), "player", m_display)
 
     except Exception as e:
         print(f"[EXCEPTION] Error occurred while scraping team '{clean_tag}': {e}")
@@ -231,19 +230,19 @@ def main():
 
     print("\n--- BEGIN PASS 2: SCRAPING AUTO-DISCOVERED TEAM MEMBERS ---")
     updated_entities = fetch_tracked_entities()
-    already_scraped = {e.get("identifier") for e in initial_entities if e.get("type") == "player"}
+    already_scraped = {str(e.get("identifier")).lower() for e in initial_entities if e.get("type") == "player"}
     
     new_players = [
-        e.get("identifier") for e in updated_entities 
-        if e.get("type") == "player" and e.get("identifier") not in already_scraped
+        str(e.get("identifier")) for e in updated_entities 
+        if e.get("type") == "player" and str(e.get("identifier")).lower() not in already_scraped
     ]
 
     print(f"[INFO] Found {len(new_players)} newly discovered players to scrape in Pass 2.")
 
     if new_players:
-        for idx, username in enumerate(new_players):
-            print(f"\n--- Scraping New Player [{idx+1}/{len(new_players)}] | Username: {username} ---")
-            scrape_player(username)
+        for idx, user_id in enumerate(new_players):
+            print(f"\n--- Scraping New Player [{idx+1}/{len(new_players)}] | ID: {user_id} ---")
+            scrape_player(user_id)
             time.sleep(0.2)
 
     elapsed = round(time.time() - start_time, 2)
