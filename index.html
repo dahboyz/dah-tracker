@@ -39,17 +39,17 @@
 
         <!-- Sub Navigation Sub-header -->
         <div class="flex items-center gap-6 text-sm font-medium border-b border-slate-800/60 pb-3 mb-5 text-slate-400 overflow-x-auto">
-            <button class="hover:text-white transition">Team Leaderboards</button>
-            <button class="text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
-            <button class="hover:text-white transition flex items-center gap-1.5">
+            <button onclick="switchMainView('teams')" id="subnav-teams" class="hover:text-white transition pb-3 -mb-[13px]">Team Leaderboards</button>
+            <button onclick="switchMainView('individuals')" id="subnav-individuals" class="text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
+            <button class="hover:text-white transition flex items-center gap-1.5 pb-3 -mb-[13px]">
                 Hall of Fame 
                 <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">NEW</span>
             </button>
-            <button class="hover:text-white transition">Bans</button>
+            <button class="hover:text-white transition pb-3 -mb-[13px]">Bans</button>
         </div>
 
-        <!-- Timeframe Filter Buttons Toolbar -->
-        <div class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
+        <!-- Timeframe Filter Buttons Toolbar (Only shown for individuals) -->
+        <div id="timeframe-toolbar" class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
             <button onclick="setTab('24h')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-24h">24 Hour</button>
             <button onclick="setTab('season')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-season">Season</button>
             <button onclick="setTab('activity')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-activity">Activity</button>
@@ -79,7 +79,7 @@
                     </div>
 
                     <!-- Flagged Racers Toggle Checkbox -->
-                    <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                    <label id="flagged-filter-container" class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
                         <input type="checkbox" class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
                         Show flagged racers
                     </label>
@@ -90,19 +90,19 @@
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
-                        <tr class="bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider">
+                        <tr id="table-headers" class="bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider">
                             <th class="py-3 px-4 w-24">Racer</th>
                             <th class="py-3 px-4"></th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Races ▾</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Accuracy ▾</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">WPM ▾</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Points ▾</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">PPR ▾</th>
+                            <th class="py-3 px-4 text-right">Races ▾</th>
+                            <th class="py-3 px-4 text-right">Accuracy ▾</th>
+                            <th class="py-3 px-4 text-right">WPM ▾</th>
+                            <th class="py-3 px-4 text-right">Points ▾</th>
+                            <th class="py-3 px-4 text-right">PPR ▾</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
                         <tr>
-                            <td colspan="7" class="p-12 text-center text-slate-500">Loading live data...</td>
+                            <td colspan="7" class="p-12 text-center text-slate-500">Connecting to database...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -123,7 +123,6 @@
     </main>
 
     <script>
-        // SUPABASE CREDENTIALS
         const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
 
@@ -154,7 +153,31 @@
             log(`Client init exception: ${e.message}`, "error");
         }
 
+        let currentView = "individuals"; // 'individuals' or 'teams'
         let currentTab = "alltime";
+
+        function switchMainView(view) {
+            currentView = view;
+            const btnTeams = document.getElementById("subnav-teams");
+            const btnIndiv = document.getElementById("subnav-individuals");
+            const toolbar = document.getElementById("timeframe-toolbar");
+            const filterContainer = document.getElementById("flagged-filter-container");
+
+            if (view === 'teams') {
+                btnTeams.className = "text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                btnIndiv.className = "hover:text-white transition pb-3 -mb-[13px]";
+                toolbar.style.display = "none";
+                filterContainer.style.display = "none";
+                document.getElementById("table-title").innerText = "Team Leaderboard";
+                loadTeamLeaderboard();
+            } else {
+                btnIndiv.className = "text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                btnTeams.className = "hover:text-white transition pb-3 -mb-[13px]";
+                toolbar.style.display = "flex";
+                filterContainer.style.display = "flex";
+                setTab('alltime');
+            }
+        }
 
         function setTab(tab) {
             currentTab = tab;
@@ -180,10 +203,7 @@
                 'custom': 'Individual Leaderboard (Custom)'
             };
             
-            const titleEl = document.getElementById("table-title");
-            if (titleEl) titleEl.innerText = titles[tab] || 'Individual Leaderboard';
-
-            log(`Switched tab view to: ${tab}`);
+            document.getElementById("table-title").innerText = titles[tab] || 'Individual Leaderboard';
             loadLeaderboard();
         }
 
@@ -194,19 +214,84 @@
             return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-semibold flex items-center justify-center text-xs">${index + 1}</div>`;
         }
 
-        async function loadLeaderboard() {
+        async function loadTeamLeaderboard() {
             const tbody = document.getElementById("leaderboard-body");
+            const theaders = document.getElementById("table-headers");
             if (!tbody) return;
+
+            theaders.innerHTML = `
+                <th class="py-3 px-4 w-24">Rank</th>
+                <th class="py-3 px-4">Team</th>
+                <th class="py-3 px-4 text-right">Total Races ▾</th>
+                <th class="py-3 px-4 text-right">Avg Accuracy ▾</th>
+                <th class="py-3 px-4 text-right">Avg WPM ▾</th>
+                <th class="py-3 px-4 text-right">Total Points ▾</th>
+            `;
+
+            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">Querying team leaderboards...</td></tr>`;
+
+            if (!db) return;
+
+            try {
+                // Adjust table name if your team schema uses a different table name (e.g., 'team_leaderboard_deltas' or 'teams')
+                let { data, error } = await db.from('team_leaderboard_deltas').select('*').order('alltime_points', { ascending: false }).limit(50);
+
+                if (error) {
+                    log(`Team query error: ${error.message}. Trying alternative 'teams' table...`, "warn");
+                    // Fallback attempt if table name differs
+                    let altQuery = await db.from('teams').select('*').limit(50);
+                    data = altQuery.data;
+                    error = altQuery.error;
+                }
+
+                if (error) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400 text-xs">Could not load teams: ${error.message}</td></tr>`;
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No teams found in database yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = "";
+                data.forEach((t, index) => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/30 transition">
+                            <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
+                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.name || t.team_name || t.identifier || 'Unknown Team'}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.alltime_races || t.races || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(t.alltime_points || t.points || 0).toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                log(`Team view exception: ${err.message}`, "error");
+            }
+        }
+
+        async function loadLeaderboard() {
+            if (currentView !== 'individuals') return;
             
+            const tbody = document.getElementById("leaderboard-body");
+            const theaders = document.getElementById("table-headers");
+            if (!tbody) return;
+
+            theaders.innerHTML = `
+                <th class="py-3 px-4 w-24">Racer</th>
+                <th class="py-3 px-4"></th>
+                <th class="py-3 px-4 text-right">Races ▾</th>
+                <th class="py-3 px-4 text-right">Accuracy ▾</th>
+                <th class="py-3 px-4 text-right">WPM ▾</th>
+                <th class="py-3 px-4 text-right">Points ▾</th>
+                <th class="py-3 px-4 text-right">PPR ▾</th>
+            `;
+
             tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">Querying database snapshots...</td></tr>`;
 
-            if (!db) {
-                log("Cannot query: Supabase client is missing credentials.", "error");
-                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Database configuration error. Check debug log.</td></tr>`;
-                return;
-            }
-
-            log(`Fetching latest player & team deltas for timeframe: ${currentTab}...`);
+            if (!db) return;
 
             try {
                 let query = db.from('player_leaderboard_deltas').select('*');
@@ -222,15 +307,13 @@
                 const { data, error } = await query;
 
                 if (error) {
-                    log(`Database Query Error: ${error.message} (Code: ${error.code})`, "error");
+                    log(`Database Query Error: ${error.message}`, "error");
                     tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Query error: ${error.message}</td></tr>`;
                     return;
                 }
 
-                log(`Successfully synced ${data ? data.length : 0} racers from backend scraper.`);
-
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No records found for this timeframe yet. Waiting for backend 5-min scraper update...</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No racer records found for this timeframe yet. Waiting for backend 5-min scraper update...</td></tr>`;
                     return;
                 }
 
@@ -250,7 +333,7 @@
                                     <div>
                                         <div class="font-semibold text-sky-300 text-sm flex items-center gap-1.5">
                                             <span class="text-slate-500 text-xs">${p.team_tag ? '[' + p.team_tag + ']' : ''}</span>
-                                            ${p.identifier}
+                                            ${p.identifier || 'Unknown Racer'}
                                         </div>
                                         <div class="text-[11px] text-slate-500 italic">"Nitro Racer"</div>
                                     </div>
@@ -273,10 +356,14 @@
         // Initial fetch on page load
         loadLeaderboard();
 
-        // Auto-refresh data every 60 seconds to pull fresh 5-min scraper database updates
+        // Auto-refresh data every 60 seconds
         setInterval(() => {
-            log("Auto-refreshing leaderboard data from Supabase...");
-            loadLeaderboard();
+            log("Auto-refreshing data from Supabase...");
+            if (currentView === 'teams') {
+                loadTeamLeaderboard();
+            } else {
+                loadLeaderboard();
+            }
         }, 60000);
     </script>
 </body>
