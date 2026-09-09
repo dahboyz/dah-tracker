@@ -8,57 +8,119 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0b1120; color: #f8fafc; font-family: sans-serif; }
-        #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto; }
+        #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
-<body class="p-6">
+<body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
 
-    <div class="max-w-6xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-sky-400">Dah Tracker</h1>
-            <span class="bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs px-3 py-1 rounded-full flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Live Sync Active
-            </span>
-        </div>
-
-        <!-- Timeframe Navigation -->
-        <div class="flex gap-2 mb-4 text-sm font-semibold border-b border-slate-800 pb-2">
-            <button onclick="setTab('60m')" class="tab-btn px-3 py-1.5 rounded bg-sky-500 text-white" id="btn-60m">60 Minute</button>
-            <button onclick="setTab('24h')" class="tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white" id="btn-24h">24 Hour</button>
-            <button onclick="setTab('alltime')" class="tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white" id="btn-alltime">All-Time</button>
-        </div>
-
-        <!-- Leaderboard Table -->
-        <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-            <table class="w-full text-left border-collapse text-sm">
-                <thead>
-                    <tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
-                        <th class="p-3">Rank</th>
-                        <th class="p-3">Racer</th>
-                        <th class="p-3">Races</th>
-                        <th class="p-3">WPM</th>
-                        <th class="p-3">Accuracy</th>
-                        <th class="p-3">Points</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboard-body">
-                    <tr>
-                        <td colspan="6" class="p-8 text-center text-slate-500">Initializing...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- On-Screen Debugger -->
-        <div class="mt-8 border border-slate-800 rounded-lg overflow-hidden">
-            <div class="bg-slate-950 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs text-slate-400">
-                <span class="font-bold uppercase tracking-wider text-amber-400">System Debug Log</span>
-                <button onclick="document.getElementById('debug-log').innerHTML=''" class="hover:text-white">Clear</button>
+    <!-- Top Navigation Bar -->
+    <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-2 text-xl font-extrabold tracking-wider italic text-sky-400">
+                <span class="text-white">Dah</span> Tracker <span class="text-emerald-400 text-xs not-italic bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1.5 inline-flex"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Live</span>
             </div>
-            <div id="debug-log" class="p-4 space-y-1"></div>
+            <nav class="hidden md:flex items-center gap-1 text-sm font-medium">
+                <button class="px-4 py-2 rounded-lg bg-sky-500 text-white shadow-sm shadow-sky-500/30">Leaderboards</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Teams</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Racers</button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition flex items-center gap-1.5">
+                    Showdown 
+                    <span class="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">NEW</span>
+                </button>
+                <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Info</button>
+            </nav>
         </div>
-    </div>
+        <div>
+            <button class="bg-sky-500 hover:bg-sky-400 text-white font-medium px-4 py-1.5 rounded-lg text-sm shadow transition">Login</button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Sub Navigation Sub-header -->
+        <div class="flex items-center gap-6 text-sm font-medium border-b border-slate-800/60 pb-3 mb-5 text-slate-400 overflow-x-auto">
+            <button class="hover:text-white transition">Team Leaderboards</button>
+            <button class="text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
+            <button class="hover:text-white transition flex items-center gap-1.5">
+                Hall of Fame 
+                <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">NEW</span>
+            </button>
+            <button class="hover:text-white transition">Bans</button>
+        </div>
+
+        <!-- Timeframe Filter Buttons Toolbar -->
+        <div class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
+            <button onclick="setTab('24h')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-24h">24 Hour</button>
+            <button onclick="setTab('season')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-season">Season</button>
+            <button onclick="setTab('activity')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-activity">Activity</button>
+            <button onclick="setTab('60m')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-60m">60 Minute</button>
+            <button onclick="setTab('7d')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-7d">7 Day</button>
+            <button onclick="setTab('daily')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-daily">Daily</button>
+            <button onclick="setTab('weekly')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-weekly">Weekly</button>
+            <button onclick="setTab('monthly')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-monthly">Monthly</button>
+            <button onclick="setTab('yearly')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-yearly">Yearly</button>
+            <button onclick="setTab('alltime')" class="time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm" id="btn-alltime">All-Time</button>
+            <button onclick="setTab('custom')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-custom">Custom</button>
+        </div>
+
+        <!-- Leaderboard Main Container Panel -->
+        <div class="bg-[#0e1626] border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
+            
+            <!-- Panel Header Info Bar -->
+            <div class="px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 bg-[#0b1120]/50">
+                <h2 id="table-title" class="text-base font-semibold text-slate-200">Individual Leaderboard (All-Time)</h2>
+                
+                <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <!-- Team Filter Dropdown -->
+                    <div class="relative">
+                        <select class="bg-[#131b2e] border border-slate-700/80 text-slate-300 text-xs rounded-lg px-3 py-2 outline-none focus:border-sky-500 cursor-pointer">
+                            <option>All Teams</option>
+                        </select>
+                    </div>
+
+                    <!-- Flagged Racers Toggle Checkbox -->
+                    <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                        <input type="checkbox" class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
+                        Show flagged racers
+                    </label>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider">
+                            <th class="py-3 px-4 w-24">Racer</th>
+                            <th class="py-3 px-4"></th>
+                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Races ▾</th>
+                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Accuracy ▾</th>
+                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">WPM ▾</th>
+                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">Points ▾</th>
+                            <th class="py-3 px-4 text-right cursor-pointer hover:bg-sky-600 transition">PPR ▾</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
+                        <tr>
+                            <td colspan="7" class="p-12 text-center text-slate-500">Loading live data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- System Debugger Section -->
+        <div class="mt-8 border border-slate-800/80 rounded-xl overflow-hidden bg-[#0e1626]">
+            <div class="bg-[#0b1120] px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs">
+                <span class="font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    System Debug Log (5-Min Auto-Sync)
+                </span>
+                <button onclick="document.getElementById('debug-log').innerHTML=''" class="text-slate-400 hover:text-white transition">Clear</button>
+            </div>
+            <div id="debug-log" class="p-3 space-y-1"></div>
+        </div>
+    </main>
 
     <script>
         // SUPABASE CREDENTIALS
@@ -74,15 +136,17 @@
             if (type === "error") color = "text-red-400";
             
             console.log(`[${time}] [${type.toUpperCase()}] ${msg}`);
-            logElement.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
-            logElement.scrollTop = logElement.scrollHeight;
+            if (logElement) {
+                logElement.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
         }
 
         let db = null;
         try {
             if (window.supabase) {
                 db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                log("Supabase client initialized.");
+                log("Supabase client initialized successfully.");
             } else {
                 log("Failed to load Supabase JS SDK library!", "error");
             }
@@ -90,29 +154,59 @@
             log(`Client init exception: ${e.message}`, "error");
         }
 
-        let currentTab = "60m";
+        let currentTab = "alltime";
 
         function setTab(tab) {
             currentTab = tab;
-            document.querySelectorAll(".tab-btn").forEach(btn => {
-                btn.className = "tab-btn px-3 py-1.5 rounded text-slate-400 hover:text-white";
+            document.querySelectorAll(".time-btn").forEach(btn => {
+                btn.className = "time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition";
             });
-            document.getElementById(`btn-${tab}`).className = "tab-btn px-3 py-1.5 rounded bg-sky-500 text-white";
-            log(`Switched tab to: ${tab}`);
+            const activeBtn = document.getElementById(`btn-${tab}`);
+            if (activeBtn) {
+                activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
+            }
+            
+            const titles = {
+                '24h': 'Individual Leaderboard (Last 24 Hours)',
+                'season': 'Individual Leaderboard (Season)',
+                'activity': 'Top 50 Racers Activity',
+                '60m': 'Individual Leaderboard (Last 60 Minutes)',
+                '7d': 'Individual Leaderboard (Last 7 Days)',
+                'daily': 'Individual Leaderboard (Daily)',
+                'weekly': 'Individual Leaderboard (Weekly)',
+                'monthly': 'Individual Leaderboard (Monthly)',
+                'yearly': 'Individual Leaderboard (Yearly)',
+                'alltime': 'Individual Leaderboard (All-Time)',
+                'custom': 'Individual Leaderboard (Custom)'
+            };
+            
+            const titleEl = document.getElementById("table-title");
+            if (titleEl) titleEl.innerText = titles[tab] || 'Individual Leaderboard';
+
+            log(`Switched tab view to: ${tab}`);
             loadLeaderboard();
+        }
+
+        function getRankBadge(index) {
+            if (index === 0) return `<div class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-bold flex items-center justify-center text-xs shadow">1</div>`;
+            if (index === 1) return `<div class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-bold flex items-center justify-center text-xs shadow">2</div>`;
+            if (index === 2) return `<div class="w-7 h-7 rounded-full bg-amber-700 text-white font-bold flex items-center justify-center text-xs shadow">3</div>`;
+            return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-semibold flex items-center justify-center text-xs">${index + 1}</div>`;
         }
 
         async function loadLeaderboard() {
             const tbody = document.getElementById("leaderboard-body");
-            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">Querying database...</td></tr>`;
+            if (!tbody) return;
+            
+            tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">Querying database snapshots...</td></tr>`;
 
             if (!db) {
                 log("Cannot query: Supabase client is missing credentials.", "error");
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400 font-mono text-xs">Database configuration error. Check debug log below.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Database configuration error. Check debug log.</td></tr>`;
                 return;
             }
 
-            log(`Executing query for timeframe: ${currentTab}...`);
+            log(`Fetching latest player & team deltas for timeframe: ${currentTab}...`);
 
             try {
                 let query = db.from('player_leaderboard_deltas').select('*');
@@ -129,14 +223,14 @@
 
                 if (error) {
                     log(`Database Query Error: ${error.message} (Code: ${error.code})`, "error");
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400 font-mono text-xs">Query error: ${error.message}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Query error: ${error.message}</td></tr>`;
                     return;
                 }
 
-                log(`Query returned ${data ? data.length : 0} rows.`);
+                log(`Successfully synced ${data ? data.length : 0} racers from backend scraper.`);
 
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">No records found for this timeframe yet. Let the 5-min scraper run!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No records found for this timeframe yet. Waiting for backend 5-min scraper update...</td></tr>`;
                     return;
                 }
 
@@ -146,16 +240,27 @@
                     const displayPoints = currentTab === '60m' ? p.points_60m : (currentTab === '24h' ? p.points_24h : p.alltime_points);
 
                     tbody.innerHTML += `
-                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
-                            <td class="p-3 font-bold text-slate-400">#${index + 1}</td>
-                            <td class="p-3">
-                                <div class="font-semibold text-sky-300">${p.identifier}</div>
-                                <div class="text-xs text-slate-500">${p.team_tag ? '[' + p.team_tag + ']' : ''}</div>
+                        <tr class="hover:bg-slate-800/30 transition">
+                            <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-8 bg-slate-900 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                        <span class="text-[10px] text-slate-500">🏎️</span>
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-sky-300 text-sm flex items-center gap-1.5">
+                                            <span class="text-slate-500 text-xs">${p.team_tag ? '[' + p.team_tag + ']' : ''}</span>
+                                            ${p.identifier}
+                                        </div>
+                                        <div class="text-[11px] text-slate-500 italic">"Nitro Racer"</div>
+                                    </div>
+                                </div>
                             </td>
-                            <td class="p-3 font-mono">${displayRaces}</td>
-                            <td class="p-3 font-mono">${p.wpm || 0}</td>
-                            <td class="p-3 font-mono">${p.accuracy || 0}%</td>
-                            <td class="p-3 font-mono text-emerald-400">${displayPoints}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${(displayRaces || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
+                            <td class="py-3 px-4 text-right font-mono text-emerald-400 font-semibold">${(displayPoints || 0).toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono text-slate-300">145</td>
                         </tr>
                     `;
                 });
@@ -165,8 +270,14 @@
             }
         }
 
-        // Initial fetch
+        // Initial fetch on page load
         loadLeaderboard();
+
+        // Auto-refresh data every 60 seconds to pull fresh 5-min scraper database updates
+        setInterval(() => {
+            log("Auto-refreshing leaderboard data from Supabase...");
+            loadLeaderboard();
+        }, 60000);
     </script>
 </body>
 </html>
