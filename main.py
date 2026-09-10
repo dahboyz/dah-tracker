@@ -21,8 +21,7 @@ except Exception as e:
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Accept-Language": "en-US,en;q=0.9"
+    "Accept": "application/json, text/javascript, */*; q=0.01"
 }
 
 def fetch_tracked_entities():
@@ -70,28 +69,10 @@ def scrape_team(team_tag: str):
         official_name = info.get("name") or clean_tag
         register_entity(clean_tag.lower(), "team", official_name)
 
-        races = int(stats.get("alltime_races", info.get("races", 0)))
-        wpm = float(stats.get("avg_wpm", info.get("avgSpeed", 0)))
-        accuracy = float(stats.get("avg_acc", info.get("avgAcc", 0)))
-        points = int(stats.get("alltime_points", info.get("points", 0)))
-        ppr = round(points / races, 2) if races > 0 else 0.00
-
-        team_snapshot = {
-            "identifier": clean_tag.lower(),
-            "type": "team",
-            "races": races,
-            "accuracy": accuracy,
-            "wpm": wpm,
-            "points": points,
-            "ppr": ppr,
-            "online_status": True,
-            "membership_status": "team",
-            "car_img_url": "",
-            "title": official_name,
-            "team_tag": clean_tag
-        }
-
-        supabase.table("snapshots").insert(team_snapshot).execute()
+        team_total_races = 0
+        team_total_points = 0
+        team_wpm_sum = 0
+        team_acc_sum = 0
 
         print(f"[ROSTER] Processing {len(members)} team members...")
         for member in members:
@@ -109,16 +90,20 @@ def scrape_team(team_tag: str):
             m_wpm = float(member.get("avgSpeed", member.get("wpm", 0)))
             m_acc = float(member.get("avgAcc", member.get("accuracy", 0)))
             
-            raw_points = int(member.get("points", 0))
-            m_points = raw_points if raw_points > 0 else (m_races * 100)
+            m_points = int(member.get("points", member.get("played", 0) * 100))
             m_ppr = round(m_points / m_races, 2) if m_races > 0 else 0.00
 
             m_car_id = member.get("carID", 1)
             m_car_hue = member.get("carHue", 0)
-            m_car_url = f"https://www.nitrotype.com/cars/48/{m_car_id}_{m_car_hue}_1.png"
+            m_car_url = f"https://www.nitrotype.com/cars/{m_car_id}_large_1.png"
 
             is_gold = bool(member.get("membership") == "gold" or member.get("isGold"))
             m_membership = "gold" if is_gold else "basic"
+
+            team_total_races += m_races
+            team_total_points += m_points
+            team_wpm_sum += m_wpm
+            team_acc_sum += m_acc
 
             player_snapshot = {
                 "identifier": m_username,
@@ -140,7 +125,28 @@ def scrape_team(team_tag: str):
             except Exception:
                 pass
 
-        print(f"[SUCCESS] Processed team [{clean_tag}] and all member snapshots.")
+        member_count = len(members) if len(members) > 0 else 1
+        avg_wpm = round(team_wpm_sum / member_count, 1)
+        avg_acc = round(team_acc_sum / member_count, 1)
+        team_ppr = round(team_total_points / team_total_races, 2) if team_total_races > 0 else 0.00
+
+        team_snapshot = {
+            "identifier": clean_tag.lower(),
+            "type": "team",
+            "races": team_total_races,
+            "accuracy": avg_acc,
+            "wpm": avg_wpm,
+            "points": team_total_points,
+            "ppr": team_ppr,
+            "online_status": True,
+            "membership_status": "team",
+            "car_img_url": "",
+            "title": official_name,
+            "team_tag": clean_tag
+        }
+
+        supabase.table("snapshots").insert(team_snapshot).execute()
+        print(f"[SUCCESS] Processed team [{clean_tag}] aggregate and all member snapshots.")
 
     except Exception as e:
         print(f"[EXCEPTION] Error scraping team '{clean_tag}': {e}")

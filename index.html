@@ -13,7 +13,6 @@
 </head>
 <body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
 
-    <!-- Top Navigation Bar -->
     <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
         <div class="flex items-center gap-8">
             <div class="flex items-center gap-2 text-xl font-extrabold tracking-wider italic text-sky-400">
@@ -37,7 +36,6 @@
 
     <main class="max-w-7xl mx-auto px-4 py-6">
 
-        <!-- Sub Navigation Sub-header -->
         <div class="flex items-center gap-6 text-sm font-medium border-b border-slate-800/60 pb-3 mb-5 text-slate-400 overflow-x-auto">
             <button onclick="switchMainView('teams')" id="subnav-teams" class="hover:text-white transition pb-3 -mb-[13px]">Team Leaderboards</button>
             <button onclick="switchMainView('individuals')" id="subnav-individuals" class="text-sky-400 font-semibold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
@@ -48,7 +46,6 @@
             <button class="hover:text-white transition pb-3 -mb-[13px]">Bans</button>
         </div>
 
-        <!-- Timeframe Filter Buttons Toolbar -->
         <div id="timeframe-toolbar" class="flex flex-wrap items-center gap-1.5 bg-[#0e1626] p-1.5 rounded-xl border border-slate-800/80 mb-6 shadow-inner text-xs font-medium">
             <button onclick="setTab('24h')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-24h">24 Hour</button>
             <button onclick="setTab('60m')" class="time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition" id="btn-60m">60 Minute</button>
@@ -57,7 +54,6 @@
             <button onclick="setTab('alltime')" class="time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm" id="btn-alltime">All-Time</button>
         </div>
 
-        <!-- Leaderboard Main Container Panel -->
         <div class="bg-[#0e1626] border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
             
             <div class="px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 bg-[#0b1120]/50">
@@ -71,18 +67,17 @@
                 </div>
             </div>
 
-            <!-- Data Table -->
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
                         <tr id="table-headers" class="bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider">
                             <th class="py-3 px-4 w-24">Racer</th>
                             <th class="py-3 px-4"></th>
-                            <th class="py-3 px-4 text-right">Races ▾</th>
-                            <th class="py-3 px-4 text-right">Accuracy ▾</th>
-                            <th class="py-3 px-4 text-right">WPM ▾</th>
-                            <th class="py-3 px-4 text-right">Points ▾</th>
-                            <th class="py-3 px-4 text-right">PPR ▾</th>
+                            <th class="py-3 px-4 text-right">Races &#9662;</th>
+                            <th class="py-3 px-4 text-right">Accuracy &#9662;</th>
+                            <th class="py-3 px-4 text-right">WPM &#9662;</th>
+                            <th class="py-3 px-4 text-right">Points &#9662;</th>
+                            <th class="py-3 px-4 text-right">PPR &#9662;</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs">
@@ -91,7 +86,6 @@
             </div>
         </div>
 
-        <!-- System Debugger Section -->
         <div class="mt-8 border border-slate-800/80 rounded-xl overflow-hidden bg-[#0e1626]">
             <div class="bg-[#0b1120] px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs">
                 <span class="font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
@@ -208,10 +202,10 @@
             theaders.innerHTML = `
                 <th class="py-3 px-4 w-24">Rank</th>
                 <th class="py-3 px-4">Team</th>
-                <th class="py-3 px-4 text-right">Total Races ▾</th>
-                <th class="py-3 px-4 text-right">Avg Accuracy ▾</th>
-                <th class="py-3 px-4 text-right">Avg WPM ▾</th>
-                <th class="py-3 px-4 text-right">Total Points ▾</th>
+                <th class="py-3 px-4 text-right">Total Races &#9662;</th>
+                <th class="py-3 px-4 text-right">Avg Accuracy &#9662;</th>
+                <th class="py-3 px-4 text-right">Avg WPM &#9662;</th>
+                <th class="py-3 px-4 text-right">Total Points &#9662;</th>
             `;
 
             tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">Querying team leaderboards...</td></tr>`;
@@ -222,21 +216,38 @@
                 const { data, error } = await db.from('snapshots')
                     .select('*')
                     .eq('type', 'team')
-                    .order('points', { ascending: false })
-                    .limit(50);
+                    .order('captured_at', { ascending: false })
+                    .limit(200);
 
                 if (error) throw error;
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team snapshots found in database yet.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500">No team snapshots found in database yet. Run scraper!</td></tr>`;
                     return;
                 }
 
+                const uniqueTeams = {};
+                data.forEach(item => {
+                    const tag = (item.team_tag || item.identifier || "").toUpperCase();
+                    if (tag && (!uniqueTeams[tag] || uniqueTeams[tag].points < item.points)) {
+                        uniqueTeams[tag] = item;
+                    }
+                });
+
+                const sortedTeams = Object.values(uniqueTeams).sort((a, b) => (b.points || 0) - (a.points || 0));
+
                 tbody.innerHTML = "";
-                data.forEach((t, index) => {
+                sortedTeams.forEach((t, index) => {
+                    const teamTag = (t.team_tag || t.identifier || "").toUpperCase();
+                    const teamUrl = `https://www.nitrotype.com/team/${teamTag}`;
+
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
-                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">${t.title || t.identifier}</td>
+                            <td class="py-3 px-4 font-semibold text-sky-300 text-sm">
+                                <a href="${teamUrl}" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1.5">
+                                    [${teamTag}] ${t.title || teamTag}
+                                </a>
+                            </td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.races || 0).toLocaleString()}</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
                             <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
@@ -260,11 +271,11 @@
             theaders.innerHTML = `
                 <th class="py-3 px-4 w-24">Racer</th>
                 <th class="py-3 px-4"></th>
-                <th class="py-3 px-4 text-right">Races ▾</th>
-                <th class="py-3 px-4 text-right">Accuracy ▾</th>
-                <th class="py-3 px-4 text-right">WPM ▾</th>
-                <th class="py-3 px-4 text-right">Points ▾</th>
-                <th class="py-3 px-4 text-right">PPR ▾</th>
+                <th class="py-3 px-4 text-right">Races &#9662;</th>
+                <th class="py-3 px-4 text-right">Accuracy &#9662;</th>
+                <th class="py-3 px-4 text-right">WPM &#9662;</th>
+                <th class="py-3 px-4 text-right">Points &#9662;</th>
+                <th class="py-3 px-4 text-right">PPR &#9662;</th>
             `;
 
             tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">Querying database snapshots...</td></tr>`;
@@ -279,7 +290,7 @@
                     query = query.gte('captured_at', timeframeIso);
                 }
 
-                const { data, error } = await query.order('points', { ascending: false }).limit(50);
+                const { data, error } = await query.order('captured_at', { ascending: false }).limit(500);
 
                 if (error) throw error;
                 if (!data || data.length === 0) {
@@ -287,20 +298,35 @@
                     return;
                 }
 
+                const uniquePlayers = {};
+                data.forEach(item => {
+                    const id = (item.identifier || "").toLowerCase();
+                    if (id && (!uniquePlayers[id] || new Date(item.captured_at) > new Date(uniquePlayers[id].captured_at))) {
+                        uniquePlayers[id] = item;
+                    }
+                });
+
+                const sortedPlayers = Object.values(uniquePlayers).sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 50);
+
                 tbody.innerHTML = "";
-                data.forEach((p, index) => {
+                sortedPlayers.forEach((p, index) => {
+                    const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
+                    const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
+
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30 transition">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-12 h-8 bg-slate-900 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
-                                        <img src="${p.car_img_url || ''}" alt="car" class="max-h-full object-contain" onerror="this.style.display='none'"/>
+                                    <div class="w-12 h-8 bg-slate-900/80 rounded border border-slate-700/60 flex items-center justify-center overflow-hidden shrink-0">
+                                        <img src="${p.car_img_url || ''}" alt="car" class="max-h-full object-contain" onerror="this.onerror=null; this.style.display='none';"/>
                                     </div>
                                     <div>
                                         <div class="font-semibold text-sky-300 text-sm flex items-center gap-1.5">
-                                            <span class="text-slate-500 text-xs">${p.team_tag ? '[' + p.team_tag + ']' : ''}</span>
-                                            ${p.identifier || 'Unknown Racer'}
+                                            ${teamUrl ? `<a href="${teamUrl}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-white transition text-xs">[${p.team_tag}]</a>` : ''}
+                                            <a href="${racerUrl}" target="_blank" rel="noopener noreferrer" class="hover:underline hover:text-sky-200">
+                                                ${p.identifier || 'Unknown Racer'}
+                                            </a>
                                         </div>
                                         <div class="text-[11px] text-slate-500 italic">${p.title || 'Nitro Racer'}</div>
                                     </div>
