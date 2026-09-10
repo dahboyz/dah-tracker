@@ -12,10 +12,20 @@
     <style>
         body { background-color: #0b1120; color: #f8fafc; font-family: 'Montserrat', sans-serif; }
         .nt-font { font-family: 'Montserrat', sans-serif; font-weight: 800; }
-        .gold-member { color: #fbbf24 !important; text-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
+        .gold-member { color: #fbbf24 !important; text-shadow: 0 0 10px rgba(251, 191, 36, 0.5); font-weight: 900 !important; }
+        #debug-panel { font-family: monospace; font-size: 11px; }
     </style>
 </head>
 <body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
+
+    <!-- DEBUG BANNER TO VERIFY VERSION & DATA -->
+    <div id="debug-panel" class="bg-slate-950 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-300 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+            <span class="bg-amber-500/20 border border-amber-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-amber-400">Debug Active</span>
+            <span id="debug-version">Version: v2.4-dedup-fixed</span>
+        </div>
+        <div id="debug-status" class="text-slate-300 font-bold">Initializing DB...</div>
+    </div>
 
     <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
         <div class="flex items-center gap-8">
@@ -89,50 +99,14 @@
         const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
 
+        const debugStatus = document.getElementById('debug-status');
+        function setDebug(msg) {
+            if (debugStatus) debugStatus.innerHTML = msg;
+            console.log(`[DAH TRACKER DEBUG] ${msg}`);
+        }
+
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         let currentView = "individuals";
-        let currentTab = "alltime";
-
-        function switchMainView(view) {
-            currentView = view;
-            const btnTeams = document.getElementById("subnav-teams");
-            const btnIndiv = document.getElementById("subnav-individuals");
-            const toolbar = document.getElementById("timeframe-toolbar");
-
-            if (view === 'teams') {
-                btnTeams.className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
-                btnIndiv.className = "hover:text-white transition pb-3 -mb-[13px]";
-                toolbar.style.display = "none";
-                document.getElementById("table-title").innerText = "Team Leaderboard";
-                loadTeamLeaderboard();
-            } else {
-                btnIndiv.className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
-                btnTeams.className = "hover:text-white transition pb-3 -mb-[13px]";
-                toolbar.style.display = "flex";
-                setTab('alltime');
-            }
-        }
-
-        function setTab(tab) {
-            currentTab = tab;
-            document.querySelectorAll(".time-btn").forEach(btn => {
-                btn.className = "time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition";
-            });
-            const activeBtn = document.getElementById(`btn-${tab}`);
-            if (activeBtn) activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
-            
-            const titles = {
-                '60m': 'Individual Leaderboard (Last 60 Minutes)',
-                '24h': 'Individual Leaderboard (Last 24 Hours)',
-                '7d': 'Individual Leaderboard (Last 7 Days)',
-                'weekly': 'Individual Leaderboard (Weekly)',
-                'monthly': 'Individual Leaderboard (Monthly)',
-                'yearly': 'Individual Leaderboard (Yearly)',
-                'alltime': 'Individual Leaderboard (All-Time)'
-            };
-            document.getElementById("table-title").innerText = titles[tab] || 'Individual Leaderboard';
-            loadLeaderboard();
-        }
 
         function getRankBadge(index) {
             if (index === 0) return `<div class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xs shadow nt-font">1</div>`;
@@ -141,38 +115,114 @@
             return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-extrabold flex items-center justify-center text-xs nt-font">${index + 1}</div>`;
         }
 
-        async function loadTeamLeaderboard() {
+        async function loadLeaderboard() {
+            if (!db) {
+                setDebug("ERR: Supabase SDK failed to load!");
+                return;
+            }
+
+            setDebug("Fetching raw records from Supabase...");
+            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
+
+            if (error) {
+                setDebug(`ERR: DB fetch error - ${error.message}`);
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                setDebug("DB returned 0 player records.");
+                return;
+            }
+
+            const totalRowsFetched = data.length;
+
+            // DEDUPLICATION via Map (Keyed by lowercase username)
+            const map = new Map();
+            for (const item of data) {
+                const key = String(item.identifier || '').toLowerCase().trim();
+                if (key && !map.has(key)) {
+                    map.set(key, item);
+                }
+            }
+
+            const uniqueRacers = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
+
+            setDebug(`Fetched: <b>${totalRowsFetched}</b> rows | Unique Racers: <b class="text-emerald-400">${uniqueRacers.length}</b>`);
+
             const tbody = document.getElementById("leaderboard-body");
-            const theaders = document.getElementById("table-headers");
-            if (!tbody || !db) return;
+            if (!tbody) return;
 
-            theaders.innerHTML = `
-                <th class="py-3.5 px-4 w-24">Rank</th>
-                <th class="py-3.5 px-4">Team</th>
-                <th class="py-3.5 px-4 text-right">Total Races &#9662;</th>
-                <th class="py-3.5 px-4 text-right">Avg Accuracy &#9662;</th>
-                <th class="py-3.5 px-4 text-right">Avg WPM &#9662;</th>
-                <th class="py-3.5 px-4 text-right">Total Points &#9662;</th>
-            `;
+            tbody.innerHTML = uniqueRacers.map((p, index) => {
+                const isGold = p.membership_status === 'gold';
+                const carUrl = p.car_img_url || 'https://www.nitrotype.com/cars/1_large_1.png';
+                const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
+                const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
 
+                return `
+                <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
+                    <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
+                    <td class="py-3 px-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
+                                <img src="${carUrl}" alt="Car" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
+                            </div>
+                            <div>
+                                <div class="text-sm flex items-center gap-1.5 nt-font">
+                                    ${teamUrl ? `<a href="${teamUrl}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-white transition text-xs font-bold">[${p.team_tag}]</a>` : ''}
+                                    <a href="${racerUrl}" target="_blank" rel="noopener noreferrer" class="${isGold ? 'gold-member' : 'text-sky-300 font-bold hover:text-sky-200'} hover:underline flex items-center gap-1">
+                                        ${p.title || p.identifier}
+                                        ${isGold ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 py-0.2 rounded font-sans font-bold">GOLD</span>' : ''}
+                                    </a>
+                                </div>
+                                <div class="text-[11px] text-slate-500 italic font-normal">@${p.identifier}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.races || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
+                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(p.points || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
+                </tr>
+            `}).join('');
+        }
+
+        function switchMainView(view) {
+            currentView = view;
+            if (view === 'teams') {
+                document.getElementById("subnav-teams").className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                document.getElementById("subnav-individuals").className = "hover:text-white transition pb-3 -mb-[13px]";
+                document.getElementById("timeframe-toolbar").style.display = "none";
+                document.getElementById("table-title").innerText = "Team Leaderboard";
+                loadTeamLeaderboard();
+            } else {
+                document.getElementById("subnav-individuals").className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
+                document.getElementById("subnav-teams").className = "hover:text-white transition pb-3 -mb-[13px]";
+                document.getElementById("timeframe-toolbar").style.display = "flex";
+                loadLeaderboard();
+            }
+        }
+
+        async function loadTeamLeaderboard() {
+            setDebug("Fetching team records...");
             const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false });
             if (!data) return;
 
             const map = new Map();
             for (const item of data) {
                 const key = String(item.team_tag || item.identifier || '').toUpperCase().trim();
-                if (key && !map.has(key)) {
-                    map.set(key, item);
-                }
+                if (key && !map.has(key)) map.set(key, item);
             }
 
             const uniqueTeams = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
+            setDebug(`Fetched: <b>${data.length}</b> team rows | Unique Teams: <b class="text-emerald-400">${uniqueTeams.length}</b>`);
 
+            const tbody = document.getElementById("leaderboard-body");
             tbody.innerHTML = uniqueTeams.map((t, index) => `
                 <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
                     <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
                     <td class="py-3 px-4 font-bold text-sky-300 text-sm nt-font">
-                        <a href="https://www.nitrotype.com/team/${t.team_tag}" target="_blank" class="hover:underline">
+                        <a href="https://www.nitrotype.com/team/${t.team_tag}" target="_blank" rel="noopener noreferrer" class="hover:underline">
                             [${t.team_tag}] ${t.title || t.team_tag}
                         </a>
                     </td>
@@ -184,63 +234,13 @@
             `).join('');
         }
 
-        async function loadLeaderboard() {
-            if (currentView !== 'individuals') return;
-            const tbody = document.getElementById("leaderboard-body");
-            const theaders = document.getElementById("table-headers");
-            if (!tbody || !db) return;
-
-            theaders.innerHTML = `
-                <th class="py-3.5 px-4 w-24">Racer</th>
-                <th class="py-3.5 px-4"></th>
-                <th class="py-3.5 px-4 text-right">Races &#9662;</th>
-                <th class="py-3.5 px-4 text-right">Accuracy &#9662;</th>
-                <th class="py-3.5 px-4 text-right">WPM &#9662;</th>
-                <th class="py-3.5 px-4 text-right">Points &#9662;</th>
-                <th class="py-3.5 px-4 text-right">PPR &#9662;</th>
-            `;
-
-            const { data } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
-            if (!data) return;
-
-            const map = new Map();
-            for (const item of data) {
-                const key = String(item.identifier || '').toLowerCase().trim();
-                if (key && !map.has(key)) {
-                    map.set(key, item);
-                }
-            }
-
-            const uniqueRacers = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
-
-            tbody.innerHTML = uniqueRacers.map((p, index) => {
-                const isGold = p.membership_status === 'gold';
-                return `
-                <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
-                    <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
-                    <td class="py-3 px-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-8 bg-slate-900/80 rounded border border-slate-700/60 flex items-center justify-center overflow-hidden shrink-0">
-                                <img src="${p.car_img_url || 'https://www.nitrotype.com/cars/1_large_1.png'}" alt="car" class="max-h-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
-                            </div>
-                            <div>
-                                <div class="text-sm flex items-center gap-1.5 nt-font">
-                                    ${p.team_tag ? `<a href="https://www.nitrotype.com/team/${p.team_tag}" target="_blank" class="text-slate-400 hover:text-white transition text-xs font-bold">[${p.team_tag}]</a>` : ''}
-                                    <a href="https://www.nitrotype.com/racer/${p.identifier}" target="_blank" class="${isGold ? 'gold-member font-black' : 'text-sky-300 font-bold'} hover:underline">
-                                        ${p.title || p.identifier}
-                                    </a>
-                                </div>
-                                <div class="text-[11px] text-slate-500 italic font-normal">${p.identifier}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.races || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
-                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(p.points || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
-                </tr>
-            `}).join('');
+        function setTab(tab) {
+            document.querySelectorAll(".time-btn").forEach(btn => {
+                btn.className = "time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition";
+            });
+            const activeBtn = document.getElementById(`btn-${tab}`);
+            if (activeBtn) activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
+            loadLeaderboard();
         }
 
         loadLeaderboard();
