@@ -21,7 +21,7 @@
         }
         .gold-member {
             color: #fbbf24 !important;
-            text-shadow: 0 0 8px rgba(251, 191, 36, 0.25);
+            text-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
         }
         #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; }
     </style>
@@ -107,7 +107,7 @@
             <div class="bg-[#0b1120] px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs">
                 <span class="font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    System Debug Log (Auto-Sync)
+                    System Debug Log
                 </span>
                 <button onclick="document.getElementById('debug-log').innerHTML=''" class="text-slate-400 hover:text-white transition">Clear</button>
             </div>
@@ -138,18 +138,18 @@
         try {
             if (window.supabase) {
                 db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                log("Supabase client initialized successfully.");
+                log("Supabase client initialized.");
             } else {
-                log("Failed to load Supabase JS SDK library!", "error");
+                log("Failed to load Supabase SDK!", "error");
             }
         } catch (e) {
-            log(`Client init exception: ${e.message}`, "error");
+            log(`Init error: ${e.message}`, "error");
         }
 
         let currentView = "individuals";
         let currentTab = "alltime";
 
-        function getTimeframeIso(tab) {
+        function getTimeframeCutoff(tab) {
             const now = new Date();
             if (tab === '60m') now.setHours(now.getHours() - 1);
             else if (tab === '24h') now.setHours(now.getHours() - 24);
@@ -158,7 +158,7 @@
             else if (tab === 'monthly') now.setDate(now.getDate() - 30);
             else if (tab === 'yearly') now.setFullYear(now.getFullYear() - 1);
             else return null;
-            return now.toISOString();
+            return now;
         }
 
         function switchMainView(view) {
@@ -229,7 +229,7 @@
                 <th class="py-3.5 px-4 text-right">Total Points &#9662;</th>
             `;
 
-            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500 font-semibold">Querying team leaderboards...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500 font-semibold">Loading teams...</td></tr>`;
 
             if (!db) return;
 
@@ -237,24 +237,24 @@
                 const { data, error } = await db.from('snapshots')
                     .select('*')
                     .eq('type', 'team')
-                    .order('captured_at', { ascending: false })
-                    .limit(300);
+                    .order('captured_at', { ascending: false });
 
                 if (error) throw error;
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500 font-semibold">No team snapshots found in database yet. Run scraper!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500 font-semibold">No team data found.</td></tr>`;
                     return;
                 }
 
-                const uniqueTeams = {};
+                // STRICT DEDUPLICATION BY TEAM TAG
+                const teamMap = new Map();
                 data.forEach(item => {
                     const tag = (item.team_tag || item.identifier || "").toUpperCase();
-                    if (tag && (!uniqueTeams[tag] || new Date(item.captured_at) > new Date(uniqueTeams[tag].captured_at))) {
-                        uniqueTeams[tag] = item;
+                    if (tag && !teamMap.has(tag)) {
+                        teamMap.set(tag, item);
                     }
                 });
 
-                const sortedTeams = Object.values(uniqueTeams).sort((a, b) => (b.points || 0) - (a.points || 0));
+                const sortedTeams = Array.from(teamMap.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
 
                 tbody.innerHTML = "";
                 sortedTeams.forEach((t, index) => {
@@ -262,7 +262,7 @@
                     const teamUrl = `https://www.nitrotype.com/team/${teamTag}`;
 
                     tbody.innerHTML += `
-                        <tr class="hover:bg-slate-800/30 transition">
+                        <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
                             <td class="py-3 px-4 font-bold text-sky-300 text-sm nt-font">
                                 <a href="${teamUrl}" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1.5">
@@ -277,7 +277,7 @@
                     `;
                 });
             } catch (err) {
-                log(`Team view exception: ${err.message}`, "error");
+                log(`Team error: ${err.message}`, "error");
                 tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400 text-xs">Error loading teams: ${err.message}</td></tr>`;
             }
         }
@@ -299,90 +299,79 @@
                 <th class="py-3.5 px-4 text-right">PPR &#9662;</th>
             `;
 
-            tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500 font-semibold">Querying database snapshots...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500 font-semibold">Loading racers...</td></tr>`;
 
             if (!db) return;
 
             try {
-                let query = db.from('snapshots').select('*').eq('type', 'player');
-                
-                const timeframeIso = getTimeframeIso(currentTab);
-
-                // Fetch data ordering by time to calculate exact deltas per player
-                const { data, error } = await query.order('captured_at', { ascending: true }).limit(2000);
+                const { data, error } = await db.from('snapshots')
+                    .select('*')
+                    .eq('type', 'player')
+                    .order('captured_at', { ascending: false });
 
                 if (error) throw error;
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500 font-semibold">No player records found in database. Run scraper!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500 font-semibold">No player data found.</td></tr>`;
                     return;
                 }
 
-                // Group all historical snapshots by player identifier
-                const playerHistories = {};
+                // Group all snapshots by player identifier
+                const histories = new Map();
                 data.forEach(item => {
                     const id = (item.identifier || "").toLowerCase();
                     if (!id) return;
-                    if (!playerHistories[id]) playerHistories[id] = [];
-                    playerHistories[id].push(item);
+                    if (!histories.has(id)) histories.set(id, []);
+                    histories.get(id).push(item);
                 });
 
-                const processedPlayers = [];
+                const cutoffDate = getTimeframeCutoff(currentTab);
+                const uniquePlayers = [];
 
-                Object.keys(playerHistories).forEach(id => {
-                    const snapshots = playerHistories[id];
-                    const latest = snapshots[snapshots.length - 1];
+                histories.forEach((snapshots, id) => {
+                    // Latest snapshot is guaranteed to be index 0 because of descending query
+                    const latest = snapshots[0];
 
-                    if (currentTab === 'alltime' || !timeframeIso) {
-                        processedPlayers.push({
-                            ...latest,
-                            display_races: latest.races || 0,
-                            display_points: latest.points || 0
-                        });
-                    } else {
-                        // Find oldest snapshot within or closest to timeframe baseline
-                        const cutoffDate = new Date(timeframeIso);
-                        let baseline = snapshots[0];
+                    let displayRaces = latest.races || 0;
+                    let displayPoints = latest.points || 0;
 
+                    if (cutoffDate && currentTab !== 'alltime') {
+                        // Find oldest record within cutoff
+                        let baseline = snapshots[snapshots.length - 1];
                         for (let s of snapshots) {
                             if (new Date(s.captured_at) <= cutoffDate) {
                                 baseline = s;
-                            } else {
                                 break;
                             }
                         }
-
-                        const raceDelta = Math.max(0, (latest.races || 0) - (baseline.races || 0));
-                        const pointDelta = Math.max(0, (latest.points || 0) - (baseline.points || 0));
-                        const pprDelta = raceDelta > 0 ? round(pointDelta / raceDelta, 2) : 0.00;
-
-                        processedPlayers.push({
-                            ...latest,
-                            display_races: raceDelta,
-                            display_points: pointDelta,
-                            ppr: pprDelta
-                        });
+                        displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                        displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
                     }
+
+                    uniquePlayers.push({
+                        ...latest,
+                        display_races: displayRaces,
+                        display_points: displayPoints
+                    });
                 });
 
-                // Deduplicate and sort strictly by points earned
-                const sortedPlayers = processedPlayers
-                    .sort((a, b) => (b.display_points || 0) - (a.display_points || 0))
-                    .slice(0, 50);
+                // Sort uniquely deduplicated players
+                const sorted = uniquePlayers.sort((a, b) => (b.display_points || 0) - (a.display_points || 0));
 
                 tbody.innerHTML = "";
-                sortedPlayers.forEach((p, index) => {
+                sorted.forEach((p, index) => {
                     const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
                     const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
                     const isGold = p.membership_status === 'gold';
                     const nameColorClass = isGold ? 'gold-member font-black' : 'text-sky-300 font-bold';
+                    const carImage = p.car_img_url || 'https://www.nitrotype.com/cars/1_large_1.png';
 
                     tbody.innerHTML += `
-                        <tr class="hover:bg-slate-800/30 transition">
+                        <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
                             <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center gap-3">
                                     <div class="w-12 h-8 bg-slate-900/80 rounded border border-slate-700/60 flex items-center justify-center overflow-hidden shrink-0">
-                                        <img src="${p.car_img_url || ''}" alt="car" class="max-h-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
+                                        <img src="${carImage}" alt="car" class="max-h-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
                                     </div>
                                     <div>
                                         <div class="text-sm flex items-center gap-1.5 nt-font">
@@ -405,21 +394,20 @@
                 });
 
             } catch (err) {
-                log(`JavaScript runtime exception: ${err.message}`, "error");
-                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Query error: ${err.message}</td></tr>`;
+                log(`Racer error: ${err.message}`, "error");
+                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-red-400 font-mono text-xs">Error: ${err.message}</td></tr>`;
             }
         }
 
         loadLeaderboard();
 
         setInterval(() => {
-            log("Auto-refreshing data from Supabase...");
             if (currentView === 'teams') {
                 loadTeamLeaderboard();
             } else {
                 loadLeaderboard();
             }
-        }, 60000);
+        }, 30000);
     </script>
 </body>
 </html>

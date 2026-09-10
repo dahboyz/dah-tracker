@@ -3,56 +3,36 @@ import time
 import requests
 from supabase import create_client, Client
 
-print("=== STARTING NITRO TYPE SCRAPER (FULL DATA MODE) ===")
+print("=== NITRO TYPE SCRAPER STARTING ===")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("[CRITICAL ERROR] Missing SUPABASE_URL or SUPABASE_KEY environment variables!")
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables.")
 
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("[INIT] Supabase client initialized successfully.")
-except Exception as e:
-    print(f"[CRITICAL ERROR] Failed to initialize Supabase client: {e}")
-    raise e
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/javascript, */*; q=0.01"
+    "Accept": "application/json"
 }
 
-def fetch_tracked_entities():
+def fetch_entities():
     try:
-        response = supabase.table("entities").select("*").execute()
-        return response.data if response.data else []
+        res = supabase.table("entities").select("*").execute()
+        return res.data if res.data else []
     except Exception as e:
-        print(f"[DB ERROR] Exception while fetching entities: {e}")
+        print(f"Error fetching entities: {e}")
         return []
 
-def register_entity(identifier: str, entity_type: str, name: str = ""):
-    if not identifier:
-        return
-    clean_id = str(identifier).lower().strip()
-    try:
-        payload = {"identifier": clean_id, "type": entity_type}
-        if name:
-            payload["name"] = name
-        supabase.table("entities").upsert(payload, on_conflict="identifier").execute()
-    except Exception as e:
-        print(f"[DB ERROR] Failed to register entity '{clean_id}': {e}")
-
-def scrape_team(team_tag: str):
+def scrape_team(team_tag):
     clean_tag = str(team_tag).upper().strip()
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
-    print(f"\n[SCRAPE TEAM] Fetching team: '{clean_tag}'")
     
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
         if res.status_code != 200:
-            print(f"[FAIL] Could not fetch team '{clean_tag}'")
             return
         
         json_data = res.json()
@@ -63,45 +43,33 @@ def scrape_team(team_tag: str):
             return
 
         info = data.get("info", {}) if isinstance(data.get("info"), dict) else {}
-        stats = data.get("stats", {}) if isinstance(data.get("stats"), dict) else {}
         members = data.get("members", []) if isinstance(data.get("members"), list) else []
 
         official_name = info.get("name") or clean_tag
-        register_entity(clean_tag.lower(), "team", official_name)
 
-        team_total_races = 0
-        team_total_points = 0
+        team_races = 0
+        team_points = 0
         team_wpm_sum = 0
         team_acc_sum = 0
 
-        print(f"[ROSTER] Processing {len(members)} team members...")
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            
-            m_username = str(member.get("username") or "").lower().strip()
+        for m in members:
+            m_username = str(m.get("username") or "").lower().strip()
             if not m_username:
                 continue
 
-            m_display = member.get("displayName") or member.get("username") or m_username
-            register_entity(m_username, "player", m_display)
-
-            m_races = int(member.get("played", member.get("races", 0)))
-            m_wpm = float(member.get("avgSpeed", member.get("wpm", 0)))
-            m_acc = float(member.get("avgAcc", member.get("accuracy", 0)))
-            
-            m_points = int(member.get("points", member.get("played", 0) * 100))
+            m_display = m.get("displayName") or m.get("username") or m_username
+            m_races = int(m.get("played", m.get("races", 0)))
+            m_wpm = float(m.get("avgSpeed", m.get("wpm", 0)))
+            m_acc = float(m.get("avgAcc", m.get("accuracy", 0)))
+            m_points = int(m.get("points", m_races * 100))
             m_ppr = round(m_points / m_races, 2) if m_races > 0 else 0.00
 
-            m_car_id = member.get("carID", 1)
-            m_car_hue = member.get("carHue", 0)
+            m_car_id = m.get("carID", 1)
             m_car_url = f"https://www.nitrotype.com/cars/{m_car_id}_large_1.png"
+            is_gold = bool(m.get("membership") == "gold" or m.get("isGold") or m.get("gold") == 1)
 
-            is_gold = bool(member.get("membership") == "gold" or member.get("isGold") or member.get("gold") == 1)
-            m_membership = "gold" if is_gold else "basic"
-
-            team_total_races += m_races
-            team_total_points += m_points
+            team_races += m_races
+            team_points += m_points
             team_wpm_sum += m_wpm
             team_acc_sum += m_acc
 
@@ -113,31 +81,24 @@ def scrape_team(team_tag: str):
                 "wpm": m_wpm,
                 "points": m_points,
                 "ppr": m_ppr,
-                "online_status": bool(member.get("online", False)),
-                "membership_status": m_membership,
+                "online_status": bool(m.get("online", False)),
+                "membership_status": "gold" if is_gold else "basic",
                 "car_img_url": m_car_url,
                 "title": m_display,
                 "team_tag": clean_tag
             }
 
-            try:
-                supabase.table("snapshots").insert(player_snapshot).execute()
-            except Exception:
-                pass
+            supabase.table("snapshots").insert(player_snapshot).execute()
 
         member_count = len(members) if len(members) > 0 else 1
-        avg_wpm = round(team_wpm_sum / member_count, 1)
-        avg_acc = round(team_acc_sum / member_count, 1)
-        team_ppr = round(team_total_points / team_total_races, 2) if team_total_races > 0 else 0.00
-
         team_snapshot = {
             "identifier": clean_tag.lower(),
             "type": "team",
-            "races": team_total_races,
-            "accuracy": avg_acc,
-            "wpm": avg_wpm,
-            "points": team_total_points,
-            "ppr": team_ppr,
+            "races": team_races,
+            "accuracy": round(team_acc_sum / member_count, 1),
+            "wpm": round(team_wpm_sum / member_count, 1),
+            "points": team_points,
+            "ppr": round(team_points / team_races, 2) if team_races > 0 else 0.00,
             "online_status": True,
             "membership_status": "team",
             "car_img_url": "",
@@ -146,24 +107,15 @@ def scrape_team(team_tag: str):
         }
 
         supabase.table("snapshots").insert(team_snapshot).execute()
-        print(f"[SUCCESS] Processed team [{clean_tag}] aggregate and all member snapshots.")
 
     except Exception as e:
-        print(f"[EXCEPTION] Error scraping team '{clean_tag}': {e}")
+        print(f"Scrape error for {clean_tag}: {e}")
 
 def main():
-    start_time = time.time()
-    entities = fetch_tracked_entities()
-    for entity in entities:
-        identifier = entity.get("identifier")
-        entity_type = entity.get("type")
-
-        if identifier and entity_type == "team":
-            scrape_team(identifier)
-        time.sleep(0.1)
-
-    elapsed = round(time.time() - start_time, 2)
-    print(f"\n=== SCRAPE COMPLETED IN {elapsed} SECONDS ===")
+    entities = fetch_entities()
+    for e in entities:
+        if e.get("type") == "team":
+            scrape_team(e.get("identifier"))
 
 if __name__ == "__main__":
     main()
