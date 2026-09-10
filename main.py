@@ -26,54 +26,72 @@ def fetch_entities():
         print(f"Error fetching entities: {e}")
         return []
 
-def scrape_player(username):
-    clean_user = str(username).lower().strip()
-    url = f"https://www.nitrotype.com/api/v2/racer/{clean_user}"
-    
+def ensure_player_entity(user_id, username, display_name):
+    """Automatically adds or updates the player in the entities table."""
     try:
-        res = requests.get(url, headers=HEADERS, timeout=10)
-        if res.status_code != 200:
-            print(f"Could not fetch player {clean_user} (Status {res.status_code})")
-            return
-        
-        json_data = res.json()
-        results = json_data.get("results", {})
-        if not results:
+        identifier = str(user_id or username).lower().strip()
+        if not identifier:
             return
 
-        races = int(results.get("racesPlayed", 0))
-        wpm = float(results.get("avgSpeed", 0))
-        acc = float(results.get("avgAcc", 0))
-        points = int(results.get("points", 0))
+        entity_payload = {
+            "identifier": identifier,
+            "type": "player",
+            "title": display_name or username
+        }
+
+        # Upsert ensures we don't crash on duplicates
+        supabase.table("entities").upsert(entity_payload, on_conflict="identifier").execute()
+    except Exception as e:
+        print(f"Note on entity auto-insert for {username}: {e}")
+
+def process_and_save_player(player_data, team_tag=""):
+    """Saves player snapshots and auto-registers them in the entities table."""
+    try:
+        user_id = player_data.get("userID")
+        raw_username = player_data.get("username") or user_id
+        
+        if not raw_username:
+            return
+
+        username = str(raw_username).lower().strip()
+        display_name = player_data.get("displayName") or player_data.get("username") or username
+
+        # 1. Auto-add to entities table so they exist in system
+        ensure_player_entity(user_id or username, username, display_name)
+
+        races = int(player_data.get("racesPlayed", player_data.get("played", 0)))
+        wpm = float(player_data.get("avgSpeed", player_data.get("wpm", 0)))
+        acc = float(player_data.get("avgAcc", player_data.get("accuracy", 0)))
+        points = int(player_data.get("points", 0))
         ppr = round(points / races, 2) if races > 0 else 0.00
         
-        car_id = results.get("carID", 1)
+        car_id = player_data.get("carID", 1)
         car_url = f"https://www.nitrotype.com/cars/{car_id}_large_1.png"
-        is_gold = bool(results.get("membership") == "gold" or results.get("gold") == 1)
+        is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1)
         
-        team_tag = str(results.get("tag", "")).upper().strip()
-        display_name = results.get("displayName") or results.get("username") or clean_user
+        tag = str(player_data.get("tag") or team_tag).upper().strip()
 
+        # 2. Save snapshot
         player_snapshot = {
-            "identifier": clean_user,
+            "identifier": username,
             "type": "player",
             "races": races,
             "accuracy": acc,
             "wpm": wpm,
             "points": points,
             "ppr": ppr,
-            "online_status": bool(results.get("online", False)),
+            "online_status": bool(player_data.get("online", False)),
             "membership_status": "gold" if is_gold else "basic",
             "car_img_url": car_url,
             "title": display_name,
-            "team_tag": team_tag
+            "team_tag": tag
         }
 
         supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"Successfully scraped player: {clean_user} (Team: {team_tag}, Races: {races}, Points: {points}, PPR: {ppr})")
+        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, Points: {points}, PPR: {ppr})")
 
     except Exception as e:
-        print(f"Error scraping player {clean_user}: {e}")
+        print(f"Error processing player {player_data.get('username')}: {e}")
 
 def scrape_team(team_tag):
     clean_tag = str(team_tag).upper().strip()
@@ -82,7 +100,7 @@ def scrape_team(team_tag):
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
         if res.status_code != 200:
-            print(f"Could not fetch team {clean_tag}")
+            print(f"Could not fetch team [{clean_tag}] (Status {res.status_code})")
             return
         
         json_data = res.json()
@@ -102,11 +120,10 @@ def scrape_team(team_tag):
         team_wpm_sum = 0
         team_acc_sum = 0
 
+        print(f"\n--- Processing Team [{clean_tag}] ({len(members)} members) ---")
+
         for m in members:
-            m_username = str(m.get("username") or "").lower().strip()
-            if m_username:
-                # Also scrape full profile for team members to keep them updated
-                scrape_player(m_username)
+            process_and_save_player(m, team_tag=clean_tag)
 
             m_races = int(m.get("played", m.get("races", 0)))
             m_wpm = float(m.get("avgSpeed", m.get("wpm", 0)))
@@ -135,10 +152,10 @@ def scrape_team(team_tag):
         }
 
         supabase.table("snapshots").insert(team_snapshot).execute()
-        print(f"Successfully scraped team: [{clean_tag}] {official_name}")
+        print(f"=== Successfully scraped Team [{clean_tag}] {official_name} ===")
 
     except Exception as e:
-        print(f"Error scraping team {clean_tag}: {e}")
+        print(f"Error scraping team [{clean_tag}]: {e}")
 
 def main():
     entities = fetch_entities()
@@ -146,16 +163,16 @@ def main():
         print("No entities found in Supabase 'entities' table.")
         return
 
-    for e in entities:
-        entity_type = e.get("type")
-        identifier = e.get("identifier")
-        
-        if entity_type == "player":
-            scrape_player(identifier)
-        elif entity_type == "team":
-            scrape_team(identifier)
-            
-        time.sleep(1) # Polite delay between requests
+    # Filter for teams only so we drive discovery starting from team rosters
+    teams = [e for e in entities if e.get("type") == "team"]
+
+    if not teams:
+        print("No team entities found to scrape.")
+        return
+
+    for t in teams:
+        scrape_team(t.get("identifier"))
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
