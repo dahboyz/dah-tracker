@@ -13,19 +13,9 @@
         body { background-color: #0b1120; color: #f8fafc; font-family: 'Montserrat', sans-serif; }
         .nt-font { font-family: 'Montserrat', sans-serif; font-weight: 800; }
         .gold-member { color: #fbbf24 !important; text-shadow: 0 0 10px rgba(251, 191, 36, 0.5); font-weight: 900 !important; }
-        #debug-panel { font-family: monospace; font-size: 11px; }
     </style>
 </head>
 <body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
-
-    <!-- DEBUG BANNER TO VERIFY VERSION & DATA -->
-    <div id="debug-panel" class="bg-slate-950 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-300 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-3">
-            <span class="bg-amber-500/20 border border-amber-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-amber-400">Debug Active</span>
-            <span id="debug-version">Version: v2.4-dedup-fixed</span>
-        </div>
-        <div id="debug-status" class="text-slate-300 font-bold">Initializing DB...</div>
-    </div>
 
     <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
         <div class="flex items-center gap-8">
@@ -99,14 +89,20 @@
         const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
 
-        const debugStatus = document.getElementById('debug-status');
-        function setDebug(msg) {
-            if (debugStatus) debugStatus.innerHTML = msg;
-            console.log(`[DAH TRACKER DEBUG] ${msg}`);
-        }
-
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         let currentView = "individuals";
+        let currentTab = "alltime";
+
+        function getTimeframeCutoff(tab) {
+            const now = new Date();
+            if (tab === '60m') now.setHours(now.getHours() - 1);
+            else if (tab === '24h') now.setHours(now.getHours() - 24);
+            else if (tab === '7d' || tab === 'weekly') now.setDate(now.getDate() - 7);
+            else if (tab === 'monthly') now.setDate(now.getDate() - 30);
+            else if (tab === 'yearly') now.setFullYear(now.getFullYear() - 1);
+            else return null;
+            return now;
+        }
 
         function getRankBadge(index) {
             if (index === 0) return `<div class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xs shadow nt-font">1</div>`;
@@ -116,43 +112,57 @@
         }
 
         async function loadLeaderboard() {
-            if (!db) {
-                setDebug("ERR: Supabase SDK failed to load!");
-                return;
-            }
-
-            setDebug("Fetching raw records from Supabase...");
-            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
-
-            if (error) {
-                setDebug(`ERR: DB fetch error - ${error.message}`);
-                return;
-            }
-
-            if (!data || data.length === 0) {
-                setDebug("DB returned 0 player records.");
-                return;
-            }
-
-            const totalRowsFetched = data.length;
-
-            // DEDUPLICATION via Map (Keyed by lowercase username)
-            const map = new Map();
-            for (const item of data) {
-                const key = String(item.identifier || '').toLowerCase().trim();
-                if (key && !map.has(key)) {
-                    map.set(key, item);
-                }
-            }
-
-            const uniqueRacers = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
-
-            setDebug(`Fetched: <b>${totalRowsFetched}</b> rows | Unique Racers: <b class="text-emerald-400">${uniqueRacers.length}</b>`);
+            if (!db || currentView !== 'individuals') return;
 
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            tbody.innerHTML = uniqueRacers.map((p, index) => {
+            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
+            if (error || !data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No racer data found.</td></tr>`;
+                return;
+            }
+
+            // Group history by player
+            const histories = new Map();
+            for (const item of data) {
+                const key = String(item.identifier || '').toLowerCase().trim();
+                if (!key) continue;
+                if (!histories.has(key)) histories.set(key, []);
+                histories.get(key).push(item);
+            }
+
+            const cutoffDate = getTimeframeCutoff(currentTab);
+            const displayList = [];
+
+            histories.forEach((snapshots) => {
+                const latest = snapshots[0]; // Most recent snapshot
+                let displayRaces = latest.races || 0;
+                let displayPoints = latest.points || 0;
+
+                if (cutoffDate && currentTab !== 'alltime') {
+                    // Find closest snapshot at or before cutoff
+                    let baseline = snapshots[snapshots.length - 1];
+                    for (const s of snapshots) {
+                        if (new Date(s.captured_at) <= cutoffDate) {
+                            baseline = s;
+                            break;
+                        }
+                    }
+                    displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                    displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
+                }
+
+                displayList.push({
+                    ...latest,
+                    calc_races: displayRaces,
+                    calc_points: displayPoints
+                });
+            });
+
+            displayList.sort((a, b) => (b.calc_points || 0) - (a.calc_points || 0));
+
+            tbody.innerHTML = displayList.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
                 const carUrl = p.car_img_url || 'https://www.nitrotype.com/cars/1_large_1.png';
                 const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
@@ -178,10 +188,10 @@
                             </div>
                         </div>
                     </td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.races || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.calc_races || 0).toLocaleString()}</td>
                     <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
                     <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
-                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(p.points || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(p.calc_points || 0).toLocaleString()}</td>
                     <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
                 </tr>
             `}).join('');
@@ -199,12 +209,14 @@
                 document.getElementById("subnav-individuals").className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
                 document.getElementById("subnav-teams").className = "hover:text-white transition pb-3 -mb-[13px]";
                 document.getElementById("timeframe-toolbar").style.display = "flex";
-                loadLeaderboard();
+                setTab('alltime');
             }
         }
 
         async function loadTeamLeaderboard() {
-            setDebug("Fetching team records...");
+            const tbody = document.getElementById("leaderboard-body");
+            if (!tbody) return;
+
             const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false });
             if (!data) return;
 
@@ -215,9 +227,7 @@
             }
 
             const uniqueTeams = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
-            setDebug(`Fetched: <b>${data.length}</b> team rows | Unique Teams: <b class="text-emerald-400">${uniqueTeams.length}</b>`);
 
-            const tbody = document.getElementById("leaderboard-body");
             tbody.innerHTML = uniqueTeams.map((t, index) => `
                 <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
                     <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
@@ -235,11 +245,23 @@
         }
 
         function setTab(tab) {
+            currentTab = tab;
             document.querySelectorAll(".time-btn").forEach(btn => {
                 btn.className = "time-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/40 transition";
             });
             const activeBtn = document.getElementById(`btn-${tab}`);
             if (activeBtn) activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
+            
+            const titles = {
+                '60m': 'Individual Leaderboard (Last 60 Minutes)',
+                '24h': 'Individual Leaderboard (Last 24 Hours)',
+                '7d': 'Individual Leaderboard (Last 7 Days)',
+                'weekly': 'Individual Leaderboard (Weekly)',
+                'monthly': 'Individual Leaderboard (Monthly)',
+                'yearly': 'Individual Leaderboard (Yearly)',
+                'alltime': 'Individual Leaderboard (All-Time)'
+            };
+            document.getElementById("table-title").innerText = titles[tab] || 'Individual Leaderboard';
             loadLeaderboard();
         }
 
@@ -247,4 +269,3 @@
     </script>
 </body>
 </html>
-<!-- Deploy trigger --> 
