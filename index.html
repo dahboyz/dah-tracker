@@ -13,7 +13,6 @@
         body { background-color: #0b1120; color: #f8fafc; font-family: 'Montserrat', sans-serif; }
         .nt-font { font-family: 'Montserrat', sans-serif; font-weight: 800; }
         .gold-member { color: #fbbf24 !important; text-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
-        #debug-log { background: #000; color: #00ff66; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
 <body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
@@ -159,18 +158,15 @@
             const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false });
             if (!data) return;
 
-            const seenTeams = new Set();
-            const uniqueTeams = [];
-
+            const map = new Map();
             for (const item of data) {
-                const key = (item.team_tag || item.identifier || "").toUpperCase();
-                if (key && !seenTeams.has(key)) {
-                    seenTeams.add(key);
-                    uniqueTeams.push(item);
+                const key = String(item.team_tag || item.identifier || '').toUpperCase().trim();
+                if (key && !map.has(key)) {
+                    map.set(key, item);
                 }
             }
 
-            uniqueTeams.sort((a, b) => (b.points || 0) - (a.points || 0));
+            const uniqueTeams = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
 
             tbody.innerHTML = uniqueTeams.map((t, index) => `
                 <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
@@ -207,18 +203,15 @@
             const { data } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
             if (!data) return;
 
-            const seenRacers = new Set();
-            const uniqueRacers = [];
-
+            const map = new Map();
             for (const item of data) {
-                const key = (item.identifier || "").toLowerCase();
-                if (key && !seenRacers.has(key)) {
-                    seenRacers.add(key);
-                    uniqueRacers.push(item);
+                const key = String(item.identifier || '').toLowerCase().trim();
+                if (key && !map.has(key)) {
+                    map.set(key, item);
                 }
             }
 
-            uniqueRacers.sort((a, b) => (b.points || 0) - (a.points || 0));
+            const uniqueRacers = Array.from(map.values()).sort((a, b) => (b.points || 0) - (a.points || 0));
 
             tbody.innerHTML = uniqueRacers.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
