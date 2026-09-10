@@ -38,10 +38,9 @@ def ensure_player_entity(user_id, username):
             "type": "player"
         }
 
-        # Upsert adds new players without crashing on duplicates
         supabase.table("entities").upsert(entity_payload, on_conflict="identifier").execute()
     except Exception as e:
-        print(f"Note on entity auto-insert for {username}: {e}")
+        pass
 
 def process_and_save_player(player_data, team_tag=""):
     """Saves player snapshots and auto-registers them in the entities table."""
@@ -55,20 +54,20 @@ def process_and_save_player(player_data, team_tag=""):
         username = str(raw_username).lower().strip()
         display_name = player_data.get("displayName") or player_data.get("username") or username
 
-        # 1. Auto-add to entities table
         ensure_player_entity(user_id, username)
 
         races = int(player_data.get("racesPlayed", player_data.get("played", 0)))
         wpm = float(player_data.get("avgSpeed", player_data.get("wpm", 0)))
         acc = float(player_data.get("avgAcc", player_data.get("accuracy", 0)))
         
-        # Calculate real Nitro Type points standard formula if not provided in team member object
+        # Calculate real Nitro Type points standard formula
         raw_points = player_data.get("points")
         if raw_points is not None and int(raw_points) > 0:
             points = int(raw_points)
         else:
-            # Fallback estimation for member points based on races & speed/accuracy
-            points = int(races * 100) # Or actual points from racer profile
+            # Nitro Type Point Formula: races * (100 + (wpm * 0.5) + (acc * 0.25))
+            pts_per_race = 100 + (wpm * 0.5) + (acc * 0.25)
+            points = int(races * pts_per_race)
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         
@@ -78,7 +77,6 @@ def process_and_save_player(player_data, team_tag=""):
         
         tag = str(player_data.get("tag") or team_tag).upper().strip()
 
-        # 2. Save snapshot
         player_snapshot = {
             "identifier": username,
             "type": "player",
@@ -95,7 +93,7 @@ def process_and_save_player(player_data, team_tag=""):
         }
 
         supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, PPR: {ppr})")
+        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, Points: {points}, PPR: {ppr})")
 
     except Exception as e:
         print(f"Error processing player {player_data.get('username')}: {e}")
@@ -135,7 +133,9 @@ def scrape_team(team_tag):
             m_races = int(m.get("played", m.get("races", 0)))
             m_wpm = float(m.get("avgSpeed", m.get("wpm", 0)))
             m_acc = float(m.get("avgAcc", m.get("accuracy", 0)))
-            m_points = int(m.get("points", m_races * 100))
+            
+            pts_per_race = 100 + (m_wpm * 0.5) + (m_acc * 0.25)
+            m_points = int(m.get("points", m_races * pts_per_race))
 
             team_races += m_races
             team_points += m_points
@@ -170,7 +170,6 @@ def main():
         print("No entities found in Supabase 'entities' table.")
         return
 
-    # Filter for teams only
     teams = [e for e in entities if e.get("type") == "team"]
 
     if not teams:

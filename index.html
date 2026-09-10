@@ -95,7 +95,7 @@
 
         function getTimeframeCutoff(tab) {
             const now = new Date();
-            if (tab === '60m') now.setHours(now.getHours() - 1);
+            if (tab === '60m') now.setMinutes(now.getMinutes() - 60);
             else if (tab === '24h') now.setHours(now.getHours() - 24);
             else if (tab === '7d' || tab === 'weekly') now.setDate(now.getDate() - 7);
             else if (tab === 'monthly') now.setDate(now.getDate() - 30);
@@ -139,6 +139,9 @@
                 const latest = snapshots[0]; // Most recent snapshot
                 let displayRaces = latest.races || 0;
                 let displayPoints = latest.points || 0;
+                let displayPPR = latest.ppr || (displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00");
+                let displayWPM = latest.wpm || 0;
+                let displayAcc = latest.accuracy || 0;
 
                 if (cutoffDate && currentTab !== 'alltime') {
                     // Find closest snapshot at or before cutoff
@@ -149,18 +152,33 @@
                             break;
                         }
                     }
+
+                    // Delta math
                     displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
                     displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
+                    
+                    if (displayRaces > 0) {
+                        displayPPR = (displayPoints / displayRaces).toFixed(2);
+                    } else {
+                        displayPPR = "0.00";
+                    }
                 }
 
                 displayList.push({
                     ...latest,
                     calc_races: displayRaces,
-                    calc_points: displayPoints
+                    calc_points: displayPoints,
+                    calc_ppr: displayPPR,
+                    calc_wpm: displayWPM,
+                    calc_acc: displayAcc
                 });
             });
 
-            displayList.sort((a, b) => (b.calc_points || 0) - (a.calc_points || 0));
+            // Sort by calculated points or races for the active timeframe
+            displayList.sort((a, b) => {
+                if (currentTab === 'alltime') return (b.points || 0) - (a.points || 0);
+                return (b.calc_points || 0) - (a.calc_points || 0) || (b.calc_races || 0) - (a.calc_races || 0);
+            });
 
             tbody.innerHTML = displayList.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
@@ -189,10 +207,10 @@
                         </div>
                     </td>
                     <td class="py-3 px-4 text-right font-mono text-slate-200">${(p.calc_races || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.accuracy || 0}%</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${p.wpm || 0}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.calc_acc || 0}%</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${p.calc_wpm || 0}</td>
                     <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(p.calc_points || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.ppr || 0}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${p.calc_ppr || "0.00"}</td>
                 </tr>
             `}).join('');
         }
@@ -240,6 +258,7 @@
                     <td class="py-3 px-4 text-right font-mono text-slate-300">${t.accuracy || 0}%</td>
                     <td class="py-3 px-4 text-right font-mono text-slate-200">${t.wpm || 0}</td>
                     <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(t.points || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${t.ppr || "0.00"}</td>
                 </tr>
             `).join('');
         }
