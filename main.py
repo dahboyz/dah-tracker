@@ -42,11 +42,20 @@ def ensure_player_entity(user_id, username):
     except Exception as e:
         pass
 
+def format_car_url(car_id):
+    """Formats car IDs into valid Nitro Type asset URLs."""
+    try:
+        cid = int(car_id)
+        cid_str = f"{cid:02d}" if cid < 10 else str(cid)
+    except (ValueError, TypeError):
+        cid_str = "01"
+    return f"https://www.nitrotype.com/cars/{cid_str}_large_1.png"
+
 def process_and_save_player(player_data, team_tag=""):
     """Saves player snapshots and auto-registers them in the entities table."""
     try:
         user_id = player_data.get("userID")
-        raw_username = player_data.get("username") or user_id
+        raw_username = player_data.get("username") or player_data.get("identifier") or user_id
         
         if not raw_username:
             return
@@ -56,23 +65,22 @@ def process_and_save_player(player_data, team_tag=""):
 
         ensure_player_entity(user_id, username)
 
-        races = int(player_data.get("racesPlayed", player_data.get("played", 0)))
-        wpm = float(player_data.get("avgSpeed", player_data.get("wpm", 0)))
-        acc = float(player_data.get("avgAcc", player_data.get("accuracy", 0)))
+        races = int(player_data.get("racesPlayed") or player_data.get("played") or player_data.get("races") or 0)
+        wpm = float(player_data.get("avgSpeed") or player_data.get("wpm") or player_data.get("speed") or 0)
+        acc = float(player_data.get("avgAcc") or player_data.get("accuracy") or player_data.get("acc") or 0)
         
         # Calculate real Nitro Type points standard formula
         raw_points = player_data.get("points")
         if raw_points is not None and int(raw_points) > 0:
             points = int(raw_points)
         else:
-            # Nitro Type Point Formula: races * (100 + (wpm * 0.5) + (acc * 0.25))
             pts_per_race = 100 + (wpm * 0.5) + (acc * 0.25)
             points = int(races * pts_per_race)
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         
         car_id = player_data.get("carID", 1)
-        car_url = f"https://www.nitrotype.com/cars/{car_id}_large_1.png"
+        car_url = format_car_url(car_id)
         is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1)
         
         tag = str(player_data.get("tag") or team_tag).upper().strip()
@@ -81,8 +89,8 @@ def process_and_save_player(player_data, team_tag=""):
             "identifier": username,
             "type": "player",
             "races": races,
-            "accuracy": acc,
-            "wpm": wpm,
+            "accuracy": round(acc, 2),
+            "wpm": round(wpm, 1),
             "points": points,
             "ppr": ppr,
             "online_status": bool(player_data.get("online", False)),
@@ -93,7 +101,7 @@ def process_and_save_player(player_data, team_tag=""):
         }
 
         supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, Points: {points}, PPR: {ppr})")
+        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, WPM: {wpm}, Acc: {acc}%, Points: {points})")
 
     except Exception as e:
         print(f"Error processing player {player_data.get('username')}: {e}")
@@ -130,9 +138,9 @@ def scrape_team(team_tag):
         for m in members:
             process_and_save_player(m, team_tag=clean_tag)
 
-            m_races = int(m.get("played", m.get("races", 0)))
-            m_wpm = float(m.get("avgSpeed", m.get("wpm", 0)))
-            m_acc = float(m.get("avgAcc", m.get("accuracy", 0)))
+            m_races = int(m.get("played") or m.get("races") or m.get("racesPlayed") or 0)
+            m_wpm = float(m.get("avgSpeed") or m.get("wpm") or 0)
+            m_acc = float(m.get("avgAcc") or m.get("accuracy") or 0)
             
             pts_per_race = 100 + (m_wpm * 0.5) + (m_acc * 0.25)
             m_points = int(m.get("points", m_races * pts_per_race))
@@ -164,6 +172,18 @@ def scrape_team(team_tag):
     except Exception as e:
         print(f"Error scraping team [{clean_tag}]: {e}")
 
+def scrape_player_direct(username):
+    url = f"https://www.nitrotype.com/api/v2/u/{username}"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            json_data = res.json()
+            results = json_data.get("results", {})
+            if isinstance(results, dict):
+                process_and_save_player(results)
+    except Exception as e:
+        print(f"Error scraping direct player {username}: {e}")
+
 def main():
     entities = fetch_entities()
     if not entities:
@@ -171,13 +191,14 @@ def main():
         return
 
     teams = [e for e in entities if e.get("type") == "team"]
-
-    if not teams:
-        print("No team entities found to scrape.")
-        return
+    players = [e for e in entities if e.get("type") == "player"]
 
     for t in teams:
         scrape_team(t.get("identifier"))
+        time.sleep(1)
+
+    for p in players:
+        scrape_player_direct(p.get("identifier"))
         time.sleep(1)
 
 if __name__ == "__main__":
