@@ -97,7 +97,7 @@ def scrape_team(team_tag: str):
             m_car_hue = member.get("carHue", 0)
             m_car_url = f"https://www.nitrotype.com/cars/{m_car_id}_large_1.png"
 
-            is_gold = bool(member.get("membership") == "gold" or member.get("isGold"))
+            is_gold = bool(member.get("membership") == "gold" or member.get("isGold") or member.get("gold") == 1)
             m_membership = "gold" if is_gold else "basic"
 
             team_total_races += m_races
