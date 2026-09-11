@@ -111,13 +111,11 @@
 
         function parseCarUrl(url) {
             if (!url || typeof url !== 'string') return "https://nitrotype.info/assets/images/cars/1_large_1.webp";
-            
             const match = url.match(/cars\/(\d+)/) || url.match(/(\d+)_large/);
             if (match && match[1]) {
                 return `https://nitrotype.info/assets/images/cars/${match[1]}_large_1.webp`;
             }
-            if (url.includes('nitrotype.info')) return url;
-            return "https://nitrotype.info/assets/images/cars/1_large_1.webp";
+            return url;
         }
 
         function handleCarError(imgEl) {
@@ -160,30 +158,26 @@
             if (timeframeMins && currentTab !== 'alltime') {
                 const nowMs = Date.now();
                 const targetTime = new Date(nowMs - timeframeMins * 60000);
-                
-                // Strict boundary to prevent grabbing snapshots older than timeframe + 3 hours
-                const maxPastBoundary = new Date(nowMs - (timeframeMins + 180) * 60000);
 
                 await Promise.all(activePlayers.map(async (latest) => {
                     const key = latest.identifier;
 
-                    // Query baseline snapshot within timeframe window
-                    const { data: baseData } = await db
+                    // Query baseline snapshot closest to target window
+                    const { data: pastSnapshots } = await db
                         .from('snapshots')
                         .select('*')
                         .eq('type', 'player')
                         .eq('identifier', key)
                         .lte('captured_at', targetTime.toISOString())
-                        .gte('captured_at', maxPastBoundary.toISOString())
                         .order('captured_at', { ascending: false })
                         .limit(1);
 
                     let baseline = null;
 
-                    if (baseData && baseData.length > 0) {
-                        baseline = baseData[0];
+                    if (pastSnapshots && pastSnapshots.length > 0) {
+                        baseline = pastSnapshots[0];
                     } else {
-                        // If no snapshot in window, grab oldest snapshot inside the timeframe
+                        // Find oldest snapshot inside timeframe window
                         const { data: oldestInWindow } = await db
                             .from('snapshots')
                             .select('*')
@@ -213,6 +207,7 @@
 
                         displayPoints = (rawPts > 0 && rawPts <= expectedPts * 1.5) ? rawPts : expectedPts;
                     } else {
+                        // If no baseline found prior to latest snapshot, set gained races to 0
                         displayRaces = 0;
                         displayPoints = 0;
                     }

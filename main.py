@@ -41,22 +41,19 @@ def ensure_player_entity(user_id, username):
     except Exception:
         pass
 
-def format_car_url(player_data):
+def extract_car_id(player_data):
     car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId")
-    
     if not car_id:
         car_obj = player_data.get("car")
         if isinstance(car_obj, dict):
-            car_id = car_obj.get("carID") or car_obj.get("id")
-        elif isinstance(car_obj, (int, str)) and str(car_obj).isdigit():
+            car_id = car_obj.get("carID") or car_obj.get("id") or car_obj.get("car_id")
+        elif isinstance(car_obj, (int, str)):
             car_id = car_obj
 
     try:
-        cid = int(car_id)
+        return int(car_id)
     except (ValueError, TypeError):
-        cid = 1
-
-    return f"https://nitrotype.info/assets/images/cars/{cid}_large_1.webp"
+        return 1
 
 def process_and_save_player(player_data, team_tag=""):
     try:
@@ -86,7 +83,8 @@ def process_and_save_player(player_data, team_tag=""):
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         
-        car_url = format_car_url(player_data)
+        car_id = extract_car_id(player_data)
+        car_url = f"https://nitrotype.info/assets/images/cars/{car_id}_large_1.webp"
         
         is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1 or player_data.get("membership") == 1)
         tag = str(player_data.get("tag") or team_tag).upper().strip()
