@@ -110,21 +110,20 @@
         }
 
         function parseCarUrl(url) {
-            if (!url || typeof url !== 'string') return "https://www.nitrotype.com/cars/1_large_1.png";
-            if (url.startsWith('http')) return url;
-            const clean = url.replace(/^\/+/, '');
-            return `https://www.nitrotype.com/${clean}`;
+            if (!url || typeof url !== 'string') return "https://nitrotype.info/assets/cars/large/1.png";
+            if (url.includes('nitrotype.info')) return url;
+            
+            // Extract car ID if it was formatted differently
+            const match = url.match(/cars\/(\d+)/);
+            if (match && match[1]) {
+                return `https://nitrotype.info/assets/cars/large/${match[1]}.png`;
+            }
+            return url;
         }
 
-        function handleCarError(imgEl, carUrl) {
+        function handleCarError(imgEl) {
             imgEl.onerror = null;
-            // Fallback chain: NitroType CDN -> NitroType Info Mirror -> Default Car 1
-            const match = carUrl.match(/cars\/(\d+)_large/);
-            if (match && match[1]) {
-                imgEl.src = `https://nitrotype.info/assets/cars/large/${match[1]}.png`;
-            } else {
-                imgEl.src = "https://www.nitrotype.com/cars/1_large_1.png";
-            }
+            imgEl.src = "https://nitrotype.info/assets/cars/large/1.png";
         }
 
         async function loadLeaderboard() {
@@ -160,18 +159,19 @@
             const displayList = [];
 
             if (timeframeMins && currentTab !== 'alltime') {
-                const cutoff = new Date(Date.now() - timeframeMins * 60000).toISOString();
+                const nowMs = Date.now();
+                const targetTime = new Date(nowMs - timeframeMins * 60000);
 
                 await Promise.all(activePlayers.map(async (latest) => {
                     const key = latest.identifier;
 
-                    // Fetch baseline strictly before or equal to cutoff date
+                    // Query snapshots older than or equal to target timeframe cutoff
                     const { data: baseData } = await db
                         .from('snapshots')
                         .select('*')
                         .eq('type', 'player')
                         .eq('identifier', key)
-                        .lte('captured_at', cutoff)
+                        .lte('captured_at', targetTime.toISOString())
                         .order('captured_at', { ascending: false })
                         .limit(1);
 
@@ -180,7 +180,7 @@
                     if (baseData && baseData.length > 0) {
                         baseline = baseData[0];
                     } else {
-                        // If no snapshot exists older than cutoff, grab the oldest snapshot inside the window
+                        // If no snapshot exists strictly before target time, grab earliest snapshot in database
                         const { data: oldestData } = await db
                             .from('snapshots')
                             .select('*')
@@ -189,7 +189,7 @@
                             .order('captured_at', { ascending: true })
                             .limit(1);
 
-                        if (oldestData && oldestData.length > 0 && oldestData[0].id !== latest.id) {
+                        if (oldestData && oldestData.length > 0) {
                             baseline = oldestData[0];
                         }
                     }
@@ -209,7 +209,6 @@
 
                         displayPoints = (rawPts > 0 && rawPts <= expectedPts * 1.5) ? rawPts : expectedPts;
                     } else {
-                        // Player was added inside this timeframe and has no earlier baseline snapshot yet
                         displayRaces = 0;
                         displayPoints = 0;
                     }
@@ -255,7 +254,7 @@
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
-                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="handleCarError(this, '${carUrl}')"/>
+                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="handleCarError(this)"/>
                             </div>
                             <div>
                                 <div class="text-sm flex items-center gap-1.5 nt-font">

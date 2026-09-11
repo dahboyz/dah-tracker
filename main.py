@@ -42,7 +42,7 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(player_data):
-    # Check for direct car ID or vehicle mapping
+    # Extract car ID directly from player object
     car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId")
     
     if not car_id:
@@ -57,13 +57,8 @@ def format_car_url(player_data):
     except (ValueError, TypeError):
         cid = 1
 
-    car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
-    try:
-        hue = int(car_hue)
-    except (ValueError, TypeError):
-        hue = 1
-
-    return f"https://www.nitrotype.com/cars/{cid}_large_{hue}.png"
+    # Directly host via nitrotype.info
+    return f"https://nitrotype.info/assets/cars/large/{cid}.png"
 
 def process_and_save_player(player_data, team_tag=""):
     try:
