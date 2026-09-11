@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from supabase import create_client, Client
 
 print("=== DAH TRACKER SCRAPER STARTING ===")
@@ -41,17 +42,13 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(player_data):
-    if player_data.get("car_img_url"):
-        url = str(player_data["car_img_url"])
-        if url.startswith("http"):
-            return url
-        return f"https://www.nitrotype.com/{url.lstrip('/')}"
-        
-    if player_data.get("car"):
-        url = str(player_data["car"])
-        if url.startswith("http"):
-            return url
-        return f"https://www.nitrotype.com/{url.lstrip('/')}"
+    for key in ["car", "car_img_url", "car_url", "carImgUrl", "carImage"]:
+        val = player_data.get(key)
+        if val and isinstance(val, str) and len(val) > 3:
+            if val.startswith("http"):
+                return val
+            clean_path = val.lstrip('/')
+            return f"https://www.nitrotype.com/{clean_path}"
 
     car_id = player_data.get("carID") or player_data.get("car_id") or 1
     car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
@@ -74,7 +71,7 @@ def process_and_save_player(player_data, team_tag=""):
         raw_username = player_data.get("username") or player_data.get("identifier") or user_id
         
         if not raw_username:
-            return
+            return None
 
         username = str(raw_username).lower().strip()
         display_name = player_data.get("displayName") or player_data.get("name") or player_data.get("username") or username
@@ -116,18 +113,18 @@ def process_and_save_player(player_data, team_tag=""):
             "team_tag": tag
         }
 
-        supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"--> Saved Player: {display_name} [@{username}] (Races: {races}, Points: {points})")
+        return player_snapshot
 
     except Exception as e:
         print(f"Error processing player {player_data.get('username')}: {e}")
+        return None
 
 def scrape_team(team_tag):
     clean_tag = str(team_tag).upper().strip()
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
     
     try:
-        res = session.get(url, timeout=10)
+        res = session.get(url, timeout=8)
         if res.status_code != 200:
             print(f"Could not fetch team [{clean_tag}] (Status {res.status_code})")
             return
@@ -149,22 +146,24 @@ def scrape_team(team_tag):
         team_wpm_sum = 0
         team_acc_sum = 0
 
-        print(f"\n--- Processing Team [{clean_tag}] ({len(members)} members) ---")
-
+        player_snapshots = []
         for m in members:
-            process_and_save_player(m, team_tag=clean_tag)
+            snap = process_and_save_player(m, team_tag=clean_tag)
+            if snap:
+                player_snapshots.append(snap)
 
-            m_races = int(m.get("played") or m.get("races") or m.get("racesPlayed") or 0)
-            m_wpm = float(m.get("avgSpeed") or m.get("wpm") or 0)
-            m_acc = float(m.get("avgAcc") or m.get("accuracy") or 0)
-            
-            pts_per_race = 100 + (m_wpm * 0.5) + (m_acc * 0.25)
-            m_points = int(m.get("points", m_races * pts_per_race))
+                m_races = snap["races"]
+                m_wpm = snap["wpm"]
+                m_acc = snap["accuracy"]
+                m_points = snap["points"]
 
-            team_races += m_races
-            team_points += m_points
-            team_wpm_sum += m_wpm
-            team_acc_sum += m_acc
+                team_races += m_races
+                team_points += m_points
+                team_wpm_sum += m_wpm
+                team_acc_sum += m_acc
+
+        if player_snapshots:
+            supabase.table("snapshots").insert(player_snapshots).execute()
 
         member_count = len(members) if len(members) > 0 else 1
         team_snapshot = {
@@ -183,7 +182,7 @@ def scrape_team(team_tag):
         }
 
         supabase.table("snapshots").insert(team_snapshot).execute()
-        print(f"=== Successfully scraped Team [{clean_tag}] {official_name} ===")
+        print(f"=== Successfully scraped Team [{clean_tag}] {official_name} ({len(members)} members) ===")
 
     except Exception as e:
         print(f"Error scraping team [{clean_tag}]: {e}")
@@ -191,16 +190,19 @@ def scrape_team(team_tag):
 def scrape_player_direct(username):
     url = f"https://www.nitrotype.com/api/v2/u/{username}"
     try:
-        res = session.get(url, timeout=10)
+        res = session.get(url, timeout=8)
         if res.status_code == 200:
             json_data = res.json()
             results = json_data.get("results", {})
             if isinstance(results, dict):
-                process_and_save_player(results)
+                snap = process_and_save_player(results)
+                if snap:
+                    supabase.table("snapshots").insert(snap).execute()
     except Exception as e:
         print(f"Error scraping direct player {username}: {e}")
 
 def main():
+    start_time = time.time()
     entities = fetch_entities()
     if not entities:
         print("No entities found in Supabase 'entities' table.")
@@ -209,13 +211,16 @@ def main():
     teams = [e for e in entities if e.get("type") == "team"]
     players = [e for e in entities if e.get("type") == "player"]
 
-    for t in teams:
-        scrape_team(t.get("identifier"))
-        time.sleep(0.5)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(scrape_team, t.get("identifier")) for t in teams]
+        futures += [executor.submit(scrape_player_direct, p.get("identifier")) for p in players]
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as exc:
+                print(f"Task generated an exception: {exc}")
 
-    for p in players:
-        scrape_player_direct(p.get("identifier"))
-        time.sleep(0.5)
+    print(f"=== SCRAPER COMPLETED IN {round(time.time() - start_time, 2)} SECONDS ===")
 
 if __name__ == "__main__":
     main()

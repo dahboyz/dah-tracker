@@ -111,7 +111,7 @@
 
         function parseCarUrl(url) {
             const fallback = "https://www.nitrotype.com/cars/1_large_1.png";
-            if (!url) return fallback;
+            if (!url || typeof url !== 'string') return fallback;
             if (url.startsWith('http')) return url;
             const clean = url.replace(/^\/+/, '');
             return `https://www.nitrotype.com/${clean}`;
@@ -123,72 +123,100 @@
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false }).limit(10000);
-            if (error || !data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">Loading leaderboard data...</td></tr>`;
+
+            const { data: latestData, error } = await db
+                .from('snapshots')
+                .select('*')
+                .eq('type', 'player')
+                .order('captured_at', { ascending: false })
+                .limit(2000);
+
+            if (error || !latestData || latestData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No racer data found.</td></tr>`;
                 return;
             }
 
-            const histories = new Map();
-            for (const item of data) {
+            const latestMap = new Map();
+            for (const item of latestData) {
                 const key = String(item.identifier || '').toLowerCase().trim();
-                if (!key) continue;
-                if (!histories.has(key)) histories.set(key, []);
-                histories.get(key).push(item);
+                if (key && !latestMap.has(key)) {
+                    latestMap.set(key, item);
+                }
             }
 
+            const activePlayers = Array.from(latestMap.values());
             const timeframeMins = getTimeframeMinutes(currentTab);
-            const now = new Date();
             const displayList = [];
 
-            histories.forEach((snapshots) => {
-                const latest = snapshots[0];
-                let displayRaces = latest.races || 0;
-                let displayPoints = latest.points || 0;
-                let displayWPM = latest.wpm || 0;
-                let displayAcc = latest.accuracy || 0;
+            if (timeframeMins && currentTab !== 'alltime') {
+                const cutoff = new Date(Date.now() - timeframeMins * 60000).toISOString();
 
-                if (timeframeMins && currentTab !== 'alltime') {
-                    const cutoff = new Date(now.getTime() - timeframeMins * 60000);
-
+                await Promise.all(activePlayers.map(async (latest) => {
+                    const key = latest.identifier;
                     let baseline = null;
-                    for (let i = 0; i < snapshots.length; i++) {
-                        const snapDate = new Date(snapshots[i].captured_at);
-                        if (snapDate <= cutoff) {
-                            baseline = snapshots[i];
-                            break;
+
+                    const { data: baseData } = await db
+                        .from('snapshots')
+                        .select('*')
+                        .eq('type', 'player')
+                        .eq('identifier', key)
+                        .lte('captured_at', cutoff)
+                        .order('captured_at', { ascending: false })
+                        .limit(1);
+
+                    if (baseData && baseData.length > 0) {
+                        baseline = baseData[0];
+                    } else {
+                        const { data: oldestData } = await db
+                            .from('snapshots')
+                            .select('*')
+                            .eq('type', 'player')
+                            .eq('identifier', key)
+                            .order('captured_at', { ascending: true })
+                            .limit(1);
+                        if (oldestData && oldestData.length > 0 && oldestData[0].id !== latest.id) {
+                            baseline = oldestData[0];
                         }
                     }
 
-                    if (!baseline && snapshots.length > 1) {
-                        baseline = snapshots[snapshots.length - 1];
-                    }
+                    let displayRaces = 0;
+                    let displayPoints = 0;
+                    let displayWPM = latest.wpm || 0;
+                    let displayAcc = latest.accuracy || 0;
 
-                    if (baseline && baseline !== latest) {
+                    if (baseline) {
                         displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
-                        
-                        const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
-                        const expectedPointDelta = Math.round(displayRaces * calcPointsPerRace);
+                        const calcPPR = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
+                        const expectedPts = Math.round(displayRaces * calcPPR);
+                        const rawPts = (latest.points || 0) - (baseline.points || 0);
 
-                        const rawPointDelta = (latest.points || 0) - (baseline.points || 0);
-                        displayPoints = rawPointDelta > 0 && rawPointDelta <= expectedPointDelta * 1.5 ? rawPointDelta : expectedPointDelta;
-                    } else {
-                        displayRaces = 0;
-                        displayPoints = 0;
+                        displayPoints = (rawPts > 0 && rawPts <= expectedPts * 1.5) ? rawPts : expectedPts;
                     }
-                }
 
-                const displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
+                    const displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
 
-                displayList.push({
-                    ...latest,
-                    calc_races: displayRaces,
-                    calc_points: displayPoints,
-                    calc_ppr: displayPPR,
-                    calc_wpm: displayWPM,
-                    calc_acc: displayAcc
+                    displayList.push({
+                        ...latest,
+                        calc_races: displayRaces,
+                        calc_points: displayPoints,
+                        calc_ppr: displayPPR,
+                        calc_wpm: displayWPM,
+                        calc_acc: displayAcc
+                    });
+                }));
+            } else {
+                activePlayers.forEach((latest) => {
+                    displayList.push({
+                        ...latest,
+                        calc_races: latest.races || 0,
+                        calc_points: latest.points || 0,
+                        calc_ppr: latest.ppr || "0.00",
+                        calc_wpm: latest.wpm || 0,
+                        calc_acc: latest.accuracy || 0
+                    });
                 });
-            });
+            }
 
             displayList.sort((a, b) => {
                 if (currentTab === 'alltime') return (b.points || 0) - (a.points || 0);
