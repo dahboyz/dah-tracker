@@ -13,10 +13,11 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-HEADERS = {
+session = requests.Session()
+session.headers.update({
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json"
-}
+})
 
 def fetch_entities():
     try:
@@ -31,44 +32,52 @@ def ensure_player_entity(user_id, username):
         identifier = str(username or user_id).lower().strip()
         if not identifier:
             return
-
         entity_payload = {
             "identifier": identifier,
             "type": "player"
         }
-
         supabase.table("entities").upsert(entity_payload, on_conflict="identifier").execute()
     except Exception:
         pass
 
-def format_car_url(car_id, car_hue=None):
-    if not car_id:
-        return "https://www.nitrotype.com/cars/1_large_1.png"
-    
-    if isinstance(car_id, str) and car_id.startswith("http"):
-        return car_id
+def format_car_url(player_data):
+    if player_data.get("car_img_url"):
+        url = str(player_data["car_img_url"])
+        if url.startswith("http"):
+            return url
+        return f"https://www.nitrotype.com/{url.lstrip('/')}"
         
+    if player_data.get("car"):
+        url = str(player_data["car"])
+        if url.startswith("http"):
+            return url
+        return f"https://www.nitrotype.com/{url.lstrip('/')}"
+
+    car_id = player_data.get("carID") or player_data.get("car_id") or 1
+    car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
+    
     try:
         cid = int(car_id)
     except (ValueError, TypeError):
         cid = 1
 
-    hue = str(car_hue) if car_hue is not None else "1"
-    if hue == "0" or not hue:
-        hue = "1"
-    
+    try:
+        hue = int(car_hue)
+    except (ValueError, TypeError):
+        hue = 1
+
     return f"https://www.nitrotype.com/cars/{cid}_large_{hue}.png"
 
 def process_and_save_player(player_data, team_tag=""):
     try:
-        user_id = player_data.get("userID")
+        user_id = player_data.get("userID") or player_data.get("id")
         raw_username = player_data.get("username") or player_data.get("identifier") or user_id
         
         if not raw_username:
             return
 
         username = str(raw_username).lower().strip()
-        display_name = player_data.get("displayName") or player_data.get("username") or username
+        display_name = player_data.get("displayName") or player_data.get("name") or player_data.get("username") or username
 
         ensure_player_entity(user_id, username)
 
@@ -87,11 +96,9 @@ def process_and_save_player(player_data, team_tag=""):
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         
-        car_id = player_data.get("carID") or player_data.get("car_id") or 1
-        car_hue = player_data.get("carHue") or player_data.get("car_hue")
-        car_url = format_car_url(car_id, car_hue)
+        car_url = format_car_url(player_data)
         
-        is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1)
+        is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1 or player_data.get("membership") == 1)
         tag = str(player_data.get("tag") or team_tag).upper().strip()
 
         player_snapshot = {
@@ -110,7 +117,7 @@ def process_and_save_player(player_data, team_tag=""):
         }
 
         supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"--> Saved Player: {display_name} [@{username}] (Car: {car_url}, Races: {races}, Points: {points})")
+        print(f"--> Saved Player: {display_name} [@{username}] (Races: {races}, Points: {points})")
 
     except Exception as e:
         print(f"Error processing player {player_data.get('username')}: {e}")
@@ -120,7 +127,7 @@ def scrape_team(team_tag):
     url = f"https://www.nitrotype.com/api/v2/teams/{clean_tag}"
     
     try:
-        res = requests.get(url, headers=HEADERS, timeout=10)
+        res = session.get(url, timeout=10)
         if res.status_code != 200:
             print(f"Could not fetch team [{clean_tag}] (Status {res.status_code})")
             return
@@ -184,7 +191,7 @@ def scrape_team(team_tag):
 def scrape_player_direct(username):
     url = f"https://www.nitrotype.com/api/v2/u/{username}"
     try:
-        res = requests.get(url, headers=HEADERS, timeout=10)
+        res = session.get(url, timeout=10)
         if res.status_code == 200:
             json_data = res.json()
             results = json_data.get("results", {})
@@ -204,11 +211,11 @@ def main():
 
     for t in teams:
         scrape_team(t.get("identifier"))
-        time.sleep(1)
+        time.sleep(0.5)
 
     for p in players:
         scrape_player_direct(p.get("identifier"))
-        time.sleep(1)
+        time.sleep(0.5)
 
 if __name__ == "__main__":
     main()

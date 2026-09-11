@@ -123,7 +123,7 @@
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false }).limit(5000);
+            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false }).limit(10000);
             if (error || !data || data.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No racer data found.</td></tr>`;
                 return;
@@ -152,9 +152,10 @@
                     const cutoff = new Date(now.getTime() - timeframeMins * 60000);
 
                     let baseline = null;
-                    for (const snap of snapshots) {
-                        if (new Date(snap.captured_at) <= cutoff) {
-                            baseline = snap;
+                    for (let i = 0; i < snapshots.length; i++) {
+                        const snapDate = new Date(snapshots[i].captured_at);
+                        if (snapDate <= cutoff) {
+                            baseline = snapshots[i];
                             break;
                         }
                     }
@@ -163,7 +164,7 @@
                         baseline = snapshots[snapshots.length - 1];
                     }
 
-                    if (baseline) {
+                    if (baseline && baseline !== latest) {
                         displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
                         
                         const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
