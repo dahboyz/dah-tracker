@@ -123,7 +123,7 @@
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false });
+            const { data, error } = await db.from('snapshots').select('*').eq('type', 'player').order('captured_at', { ascending: false }).limit(5000);
             if (error || !data || data.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No racer data found.</td></tr>`;
                 return;
@@ -150,7 +150,6 @@
 
                 if (timeframeMins && currentTab !== 'alltime') {
                     const cutoff = new Date(now.getTime() - timeframeMins * 60000);
-                    const oldestAvailable = new Date(snapshots[snapshots.length - 1].captured_at);
 
                     let baseline = null;
                     for (const snap of snapshots) {
@@ -160,22 +159,18 @@
                         }
                     }
 
+                    if (!baseline && snapshots.length > 1) {
+                        baseline = snapshots[snapshots.length - 1];
+                    }
+
                     if (baseline) {
                         displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
                         
-                        // Calculate standard points gain per race if point snapshot delta is mismatched
-                        const raceDelta = displayRaces;
                         const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
-                        const expectedPointDelta = Math.round(raceDelta * calcPointsPerRace);
+                        const expectedPointDelta = Math.round(displayRaces * calcPointsPerRace);
 
                         const rawPointDelta = (latest.points || 0) - (baseline.points || 0);
                         displayPoints = rawPointDelta > 0 && rawPointDelta <= expectedPointDelta * 1.5 ? rawPointDelta : expectedPointDelta;
-                    } else if (snapshots.length > 1) {
-                        const oldest = snapshots[snapshots.length - 1];
-                        displayRaces = Math.max(0, (latest.races || 0) - (oldest.races || 0));
-                        
-                        const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
-                        displayPoints = Math.round(displayRaces * calcPointsPerRace);
                     } else {
                         displayRaces = 0;
                         displayPoints = 0;
@@ -254,7 +249,7 @@
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false });
+            const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false }).limit(1000);
             if (!data) return;
 
             const map = new Map();
