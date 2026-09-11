@@ -42,6 +42,7 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(player_data):
+    # Direct CDN paths if returned by NT API
     for key in ["car", "car_img_url", "car_url", "carImgUrl", "carImage"]:
         val = player_data.get(key)
         if val and isinstance(val, str) and len(val) > 3:
@@ -50,7 +51,8 @@ def format_car_url(player_data):
             clean_path = val.lstrip('/')
             return f"https://www.nitrotype.com/{clean_path}"
 
-    car_id = player_data.get("carID") or player_data.get("car_id") or 1
+    # Extract integer carID and hue
+    car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId") or 1
     car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
     
     try:

@@ -156,6 +156,7 @@
                     const key = latest.identifier;
                     let baseline = null;
 
+                    // Query snap closest to cutoff date
                     const { data: baseData } = await db
                         .from('snapshots')
                         .select('*')
@@ -168,6 +169,7 @@
                     if (baseData && baseData.length > 0) {
                         baseline = baseData[0];
                     } else {
+                        // If no entry exists before cutoff, grab the oldest snapshot within the window
                         const { data: oldestData } = await db
                             .from('snapshots')
                             .select('*')
@@ -175,6 +177,7 @@
                             .eq('identifier', key)
                             .order('captured_at', { ascending: true })
                             .limit(1);
+                            
                         if (oldestData && oldestData.length > 0 && oldestData[0].id !== latest.id) {
                             baseline = oldestData[0];
                         }
@@ -185,13 +188,19 @@
                     let displayWPM = latest.wpm || 0;
                     let displayAcc = latest.accuracy || 0;
 
-                    if (baseline) {
-                        displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                    if (baseline && baseline.id !== latest.id) {
+                        const rawRaces = (latest.races || 0) - (baseline.races || 0);
+                        displayRaces = rawRaces > 0 ? rawRaces : 0;
+                        
                         const calcPPR = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
                         const expectedPts = Math.round(displayRaces * calcPPR);
                         const rawPts = (latest.points || 0) - (baseline.points || 0);
 
                         displayPoints = (rawPts > 0 && rawPts <= expectedPts * 1.5) ? rawPts : expectedPts;
+                    } else {
+                        // User has no historical baseline in this period yet
+                        displayRaces = 0;
+                        displayPoints = 0;
                     }
 
                     const displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
