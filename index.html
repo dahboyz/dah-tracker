@@ -93,15 +93,13 @@
         let currentView = "individuals";
         let currentTab = "alltime";
 
-        function getTimeframeCutoff(tab) {
-            const now = new Date();
-            if (tab === '60m') now.setMinutes(now.getMinutes() - 60);
-            else if (tab === '24h') now.setHours(now.getHours() - 24);
-            else if (tab === '7d' || tab === 'weekly') now.setDate(now.getDate() - 7);
-            else if (tab === 'monthly') now.setDate(now.getDate() - 30);
-            else if (tab === 'yearly') now.setFullYear(now.getFullYear() - 1);
-            else return null;
-            return now;
+        function getTimeframeMinutes(tab) {
+            if (tab === '60m') return 60;
+            if (tab === '24h') return 1440;
+            if (tab === '7d' || tab === 'weekly') return 10080;
+            if (tab === 'monthly') return 43200;
+            if (tab === 'yearly') return 525600;
+            return null;
         }
 
         function getRankBadge(index) {
@@ -109,6 +107,13 @@
             if (index === 1) return `<div class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black flex items-center justify-center text-xs shadow nt-font">2</div>`;
             if (index === 2) return `<div class="w-7 h-7 rounded-full bg-amber-700 text-white font-black flex items-center justify-center text-xs shadow nt-font">3</div>`;
             return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-extrabold flex items-center justify-center text-xs nt-font">${index + 1}</div>`;
+        }
+
+        function formatCarUrl(url) {
+            const fallback = "https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png";
+            if (!url) return fallback;
+            if (url.startsWith('http')) return url;
+            return `https://www.nitrotype.com/assets/cars/images/${url.replace(/^\/+/, '')}`;
         }
 
         async function loadLeaderboard() {
@@ -131,7 +136,8 @@
                 histories.get(key).push(item);
             }
 
-            const cutoffDate = getTimeframeCutoff(currentTab);
+            const timeframeMins = getTimeframeMinutes(currentTab);
+            const now = new Date();
             const displayList = [];
 
             histories.forEach((snapshots) => {
@@ -140,33 +146,38 @@
                 let displayPoints = latest.points || 0;
                 let displayWPM = latest.wpm || 0;
                 let displayAcc = latest.accuracy || 0;
-                let displayPPR = latest.ppr || (displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00");
 
-                if (cutoffDate && currentTab !== 'alltime') {
-                    // Find closest snapshot taken on or immediately after the timeframe cutoff
-                    let baseline = null;
-                    for (let i = snapshots.length - 1; i >= 0; i--) {
-                        const snapDate = new Date(snapshots[i].captured_at);
-                        if (snapDate <= cutoffDate) {
-                            baseline = snapshots[i];
-                            break;
-                        }
-                    }
+                if (timeframeMins && currentTab !== 'alltime') {
+                    const cutoff = new Date(now.getTime() - timeframeMins * 60000);
+                    const oldestAvailable = new Date(snapshots[snapshots.length - 1].captured_at);
 
-                    // If tracking hasn't existed long enough for the cutoff, use the oldest recorded snapshot
-                    if (!baseline && snapshots.length > 1) {
-                        baseline = snapshots[snapshots.length - 1];
-                    }
-
-                    if (baseline) {
-                        displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
-                        displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
-                    } else {
+                    // If database history doesn't go back to the timeframe cutoff (e.g., 7d request on 2d old DB)
+                    if (oldestAvailable > cutoff && timeframeMins > 1440) {
                         displayRaces = 0;
                         displayPoints = 0;
+                    } else {
+                        let baseline = null;
+                        for (const snap of snapshots) {
+                            if (new Date(snap.captured_at) <= cutoff) {
+                                baseline = snap;
+                                break;
+                            }
+                        }
+                        if (!baseline && snapshots.length > 1) {
+                            baseline = snapshots[snapshots.length - 1];
+                        }
+
+                        if (baseline) {
+                            displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                            displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
+                        } else {
+                            displayRaces = 0;
+                            displayPoints = 0;
+                        }
                     }
-                    displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
                 }
+
+                const displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
 
                 displayList.push({
                     ...latest,
@@ -185,8 +196,7 @@
 
             tbody.innerHTML = displayList.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
-                const fallbackCar = "https://www.nitrotype.com/cars/images/01_large_1.png";
-                const carUrl = p.car_img_url || fallbackCar;
+                const carUrl = formatCarUrl(p.car_img_url);
                 const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
                 const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
 
@@ -196,7 +206,7 @@
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
-                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='${fallbackCar}';"/>
+                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png';"/>
                             </div>
                             <div>
                                 <div class="text-sm flex items-center gap-1.5 nt-font">

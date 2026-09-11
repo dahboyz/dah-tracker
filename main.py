@@ -41,13 +41,23 @@ def ensure_player_entity(user_id, username):
     except Exception:
         pass
 
-def format_car_url(car_id):
+def format_car_url(car_id, car_hue=None):
+    if not car_id:
+        return "https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png"
+    
+    if isinstance(car_id, str) and car_id.startswith("http"):
+        return car_id
+        
     try:
         cid = int(car_id)
         cid_str = f"{cid:02d}" if cid < 10 else str(cid)
     except (ValueError, TypeError):
         cid_str = "01"
-    return f"https://www.nitrotype.com/cars/images/{cid_str}_large_1.png"
+
+    if car_hue and str(car_hue) != "0":
+        return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_{car_hue}.png"
+    
+    return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_1.png"
 
 def process_and_save_player(player_data, team_tag=""):
     try:
@@ -75,10 +85,11 @@ def process_and_save_player(player_data, team_tag=""):
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         
-        car_id = player_data.get("carID", 1)
-        car_url = format_car_url(car_id)
-        is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1)
+        car_id = player_data.get("carID") or player_data.get("car_id") or 1
+        car_hue = player_data.get("carHue") or player_data.get("car_hue")
+        car_url = format_car_url(car_id, car_hue)
         
+        is_gold = bool(player_data.get("membership") == "gold" or player_data.get("gold") == 1)
         tag = str(player_data.get("tag") or team_tag).upper().strip()
 
         player_snapshot = {
@@ -97,7 +108,7 @@ def process_and_save_player(player_data, team_tag=""):
         }
 
         supabase.table("snapshots").insert(player_snapshot).execute()
-        print(f"--> Saved Player: {display_name} [@{username}] (Team: [{tag}], Races: {races}, WPM: {wpm}, Acc: {acc}%, Points: {points})")
+        print(f"--> Saved Player: {display_name} [@{username}] (Car: {car_url}, Races: {races}, Points: {points})")
 
     except Exception as e:
         print(f"Error processing player {player_data.get('username')}: {e}")
