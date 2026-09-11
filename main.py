@@ -39,17 +39,17 @@ def ensure_player_entity(user_id, username):
         }
 
         supabase.table("entities").upsert(entity_payload, on_conflict="identifier").execute()
-    except Exception as e:
+    except Exception:
         pass
 
 def format_car_url(car_id):
-    """Formats car IDs into valid Nitro Type asset URLs."""
+    """Formats car IDs into valid public Nitro Type CDN asset URLs that allow hotlinking."""
     try:
         cid = int(car_id)
         cid_str = f"{cid:02d}" if cid < 10 else str(cid)
     except (ValueError, TypeError):
         cid_str = "01"
-    return f"https://www.nitrotype.com/cars/{cid_str}_large_1.png"
+    return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_1.png"
 
 def process_and_save_player(player_data, team_tag=""):
     """Saves player snapshots and auto-registers them in the entities table."""
@@ -69,7 +69,6 @@ def process_and_save_player(player_data, team_tag=""):
         wpm = float(player_data.get("avgSpeed") or player_data.get("wpm") or player_data.get("speed") or 0)
         acc = float(player_data.get("avgAcc") or player_data.get("accuracy") or player_data.get("acc") or 0)
         
-        # Calculate real Nitro Type points standard formula
         raw_points = player_data.get("points")
         if raw_points is not None and int(raw_points) > 0:
             points = int(raw_points)
