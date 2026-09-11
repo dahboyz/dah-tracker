@@ -43,21 +43,21 @@ def ensure_player_entity(user_id, username):
 
 def format_car_url(car_id, car_hue=None):
     if not car_id:
-        return "https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png"
+        return "https://www.nitrotype.com/cars/1_large_1.png"
     
     if isinstance(car_id, str) and car_id.startswith("http"):
         return car_id
         
     try:
         cid = int(car_id)
-        cid_str = f"{cid:02d}" if cid < 10 else str(cid)
     except (ValueError, TypeError):
-        cid_str = "01"
+        cid = 1
 
-    if car_hue and str(car_hue) != "0":
-        return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_{car_hue}.png"
+    hue = str(car_hue) if car_hue is not None else "1"
+    if hue == "0" or not hue:
+        hue = "1"
     
-    return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_1.png"
+    return f"https://www.nitrotype.com/cars/{cid}_large_{hue}.png"
 
 def process_and_save_player(player_data, team_tag=""):
     try:
@@ -76,12 +76,14 @@ def process_and_save_player(player_data, team_tag=""):
         wpm = float(player_data.get("avgSpeed") or player_data.get("wpm") or player_data.get("speed") or 0)
         acc = float(player_data.get("avgAcc") or player_data.get("accuracy") or player_data.get("acc") or 0)
         
+        pts_per_race = 100 + (wpm * 0.5) + (acc * 0.25)
+        calc_points = int(races * pts_per_race)
+
         raw_points = player_data.get("points")
-        if raw_points is not None and int(raw_points) > 0:
+        if raw_points is not None and int(raw_points) >= calc_points * 0.5:
             points = int(raw_points)
         else:
-            pts_per_race = 100 + (wpm * 0.5) + (acc * 0.25)
-            points = int(races * pts_per_race)
+            points = calc_points
             
         ppr = round(points / races, 2) if races > 0 else 0.00
         

@@ -109,11 +109,12 @@
             return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-extrabold flex items-center justify-center text-xs nt-font">${index + 1}</div>`;
         }
 
-        function formatCarUrl(url) {
-            const fallback = "https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png";
+        function parseCarUrl(url) {
+            const fallback = "https://www.nitrotype.com/cars/1_large_1.png";
             if (!url) return fallback;
             if (url.startsWith('http')) return url;
-            return `https://www.nitrotype.com/assets/cars/images/${url.replace(/^\/+/, '')}`;
+            const clean = url.replace(/^\/+/, '');
+            return `https://www.nitrotype.com/${clean}`;
         }
 
         async function loadLeaderboard() {
@@ -151,29 +152,33 @@
                     const cutoff = new Date(now.getTime() - timeframeMins * 60000);
                     const oldestAvailable = new Date(snapshots[snapshots.length - 1].captured_at);
 
-                    // If database history doesn't go back to the timeframe cutoff (e.g., 7d request on 2d old DB)
-                    if (oldestAvailable > cutoff && timeframeMins > 1440) {
+                    let baseline = null;
+                    for (const snap of snapshots) {
+                        if (new Date(snap.captured_at) <= cutoff) {
+                            baseline = snap;
+                            break;
+                        }
+                    }
+
+                    if (baseline) {
+                        displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                        
+                        // Calculate standard points gain per race if point snapshot delta is mismatched
+                        const raceDelta = displayRaces;
+                        const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
+                        const expectedPointDelta = Math.round(raceDelta * calcPointsPerRace);
+
+                        const rawPointDelta = (latest.points || 0) - (baseline.points || 0);
+                        displayPoints = rawPointDelta > 0 && rawPointDelta <= expectedPointDelta * 1.5 ? rawPointDelta : expectedPointDelta;
+                    } else if (snapshots.length > 1) {
+                        const oldest = snapshots[snapshots.length - 1];
+                        displayRaces = Math.max(0, (latest.races || 0) - (oldest.races || 0));
+                        
+                        const calcPointsPerRace = 100 + (displayWPM * 0.5) + (displayAcc * 0.25);
+                        displayPoints = Math.round(displayRaces * calcPointsPerRace);
+                    } else {
                         displayRaces = 0;
                         displayPoints = 0;
-                    } else {
-                        let baseline = null;
-                        for (const snap of snapshots) {
-                            if (new Date(snap.captured_at) <= cutoff) {
-                                baseline = snap;
-                                break;
-                            }
-                        }
-                        if (!baseline && snapshots.length > 1) {
-                            baseline = snapshots[snapshots.length - 1];
-                        }
-
-                        if (baseline) {
-                            displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
-                            displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
-                        } else {
-                            displayRaces = 0;
-                            displayPoints = 0;
-                        }
                     }
                 }
 
@@ -196,7 +201,7 @@
 
             tbody.innerHTML = displayList.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
-                const carUrl = formatCarUrl(p.car_img_url);
+                const carUrl = parseCarUrl(p.car_img_url);
                 const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
                 const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
 
@@ -206,7 +211,7 @@
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
-                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png';"/>
+                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
                             </div>
                             <div>
                                 <div class="text-sm flex items-center gap-1.5 nt-font">
