@@ -42,24 +42,22 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(player_data):
-    # Direct CDN paths if returned by NT API
-    for key in ["car", "car_img_url", "car_url", "carImgUrl", "carImage"]:
-        val = player_data.get(key)
-        if val and isinstance(val, str) and len(val) > 3:
-            if val.startswith("http"):
-                return val
-            clean_path = val.lstrip('/')
-            return f"https://www.nitrotype.com/{clean_path}"
-
-    # Extract integer carID and hue
-    car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId") or 1
-    car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
+    # Check for direct car ID or vehicle mapping
+    car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId")
     
+    if not car_id:
+        car_obj = player_data.get("car")
+        if isinstance(car_obj, dict):
+            car_id = car_obj.get("carID") or car_obj.get("id")
+        elif isinstance(car_obj, (int, str)) and str(car_obj).isdigit():
+            car_id = car_obj
+
     try:
         cid = int(car_id)
     except (ValueError, TypeError):
         cid = 1
 
+    car_hue = player_data.get("carHue") or player_data.get("car_hue") or 1
     try:
         hue = int(car_hue)
     except (ValueError, TypeError):
@@ -128,7 +126,6 @@ def scrape_team(team_tag):
     try:
         res = session.get(url, timeout=8)
         if res.status_code != 200:
-            print(f"Could not fetch team [{clean_tag}] (Status {res.status_code})")
             return
         
         json_data = res.json()
@@ -154,15 +151,10 @@ def scrape_team(team_tag):
             if snap:
                 player_snapshots.append(snap)
 
-                m_races = snap["races"]
-                m_wpm = snap["wpm"]
-                m_acc = snap["accuracy"]
-                m_points = snap["points"]
-
-                team_races += m_races
-                team_points += m_points
-                team_wpm_sum += m_wpm
-                team_acc_sum += m_acc
+                team_races += snap["races"]
+                team_points += snap["points"]
+                team_wpm_sum += snap["wpm"]
+                team_acc_sum += snap["accuracy"]
 
         if player_snapshots:
             supabase.table("snapshots").insert(player_snapshots).execute()
@@ -184,7 +176,7 @@ def scrape_team(team_tag):
         }
 
         supabase.table("snapshots").insert(team_snapshot).execute()
-        print(f"=== Successfully scraped Team [{clean_tag}] {official_name} ({len(members)} members) ===")
+        print(f"=== Scraped Team [{clean_tag}] ({len(members)} members) ===")
 
     except Exception as e:
         print(f"Error scraping team [{clean_tag}]: {e}")
@@ -201,13 +193,12 @@ def scrape_player_direct(username):
                 if snap:
                     supabase.table("snapshots").insert(snap).execute()
     except Exception as e:
-        print(f"Error scraping direct player {username}: {e}")
+        print(f"Error scraping player {username}: {e}")
 
 def main():
     start_time = time.time()
     entities = fetch_entities()
     if not entities:
-        print("No entities found in Supabase 'entities' table.")
         return
 
     teams = [e for e in entities if e.get("type") == "team"]
@@ -219,8 +210,8 @@ def main():
         for future in as_completed(futures):
             try:
                 future.result()
-            except Exception as exc:
-                print(f"Task generated an exception: {exc}")
+            except Exception:
+                pass
 
     print(f"=== SCRAPER COMPLETED IN {round(time.time() - start_time, 2)} SECONDS ===")
 

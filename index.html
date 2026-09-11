@@ -110,11 +110,21 @@
         }
 
         function parseCarUrl(url) {
-            const fallback = "https://www.nitrotype.com/cars/1_large_1.png";
-            if (!url || typeof url !== 'string') return fallback;
+            if (!url || typeof url !== 'string') return "https://www.nitrotype.com/cars/1_large_1.png";
             if (url.startsWith('http')) return url;
             const clean = url.replace(/^\/+/, '');
             return `https://www.nitrotype.com/${clean}`;
+        }
+
+        function handleCarError(imgEl, carUrl) {
+            imgEl.onerror = null;
+            // Fallback chain: NitroType CDN -> NitroType Info Mirror -> Default Car 1
+            const match = carUrl.match(/cars\/(\d+)_large/);
+            if (match && match[1]) {
+                imgEl.src = `https://nitrotype.info/assets/cars/large/${match[1]}.png`;
+            } else {
+                imgEl.src = "https://www.nitrotype.com/cars/1_large_1.png";
+            }
         }
 
         async function loadLeaderboard() {
@@ -154,9 +164,8 @@
 
                 await Promise.all(activePlayers.map(async (latest) => {
                     const key = latest.identifier;
-                    let baseline = null;
 
-                    // Query snap closest to cutoff date
+                    // Fetch baseline strictly before or equal to cutoff date
                     const { data: baseData } = await db
                         .from('snapshots')
                         .select('*')
@@ -166,10 +175,12 @@
                         .order('captured_at', { ascending: false })
                         .limit(1);
 
+                    let baseline = null;
+
                     if (baseData && baseData.length > 0) {
                         baseline = baseData[0];
                     } else {
-                        // If no entry exists before cutoff, grab the oldest snapshot within the window
+                        // If no snapshot exists older than cutoff, grab the oldest snapshot inside the window
                         const { data: oldestData } = await db
                             .from('snapshots')
                             .select('*')
@@ -177,7 +188,7 @@
                             .eq('identifier', key)
                             .order('captured_at', { ascending: true })
                             .limit(1);
-                            
+
                         if (oldestData && oldestData.length > 0 && oldestData[0].id !== latest.id) {
                             baseline = oldestData[0];
                         }
@@ -198,7 +209,7 @@
 
                         displayPoints = (rawPts > 0 && rawPts <= expectedPts * 1.5) ? rawPts : expectedPts;
                     } else {
-                        // User has no historical baseline in this period yet
+                        // Player was added inside this timeframe and has no earlier baseline snapshot yet
                         displayRaces = 0;
                         displayPoints = 0;
                     }
@@ -244,7 +255,7 @@
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
-                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/cars/1_large_1.png';"/>
+                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="handleCarError(this, '${carUrl}')"/>
                             </div>
                             <div>
                                 <div class="text-sm flex items-center gap-1.5 nt-font">
