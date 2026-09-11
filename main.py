@@ -42,7 +42,6 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(player_data):
-    # Extract car ID directly from player object
     car_id = player_data.get("carID") or player_data.get("car_id") or player_data.get("carId")
     
     if not car_id:
@@ -57,8 +56,7 @@ def format_car_url(player_data):
     except (ValueError, TypeError):
         cid = 1
 
-    # Directly host via nitrotype.info
-    return f"https://nitrotype.info/assets/cars/large/{cid}.png"
+    return f"https://nitrotype.info/assets/images/cars/{cid}_large_1.webp"
 
 def process_and_save_player(player_data, team_tag=""):
     try:
