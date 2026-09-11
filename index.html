@@ -132,7 +132,7 @@
             tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">Loading leaderboard data...</td></tr>`;
 
             const { data: latestData, error } = await db
-                .from('snapshots')
+                .from('rolling_leaderboards')
                 .select('*')
                 .eq('type', 'player')
                 .order('captured_at', { ascending: false })
@@ -164,7 +164,7 @@
 
                     // Query baseline snapshot closest to target window
                     const { data: pastSnapshots } = await db
-                        .from('snapshots')
+                        .from('rolling_leaderboards')
                         .select('*')
                         .eq('type', 'player')
                         .eq('identifier', key)
@@ -179,7 +179,7 @@
                     } else {
                         // Find oldest snapshot inside timeframe window
                         const { data: oldestInWindow } = await db
-                            .from('snapshots')
+                            .from('rolling_leaderboards')
                             .select('*')
                             .eq('type', 'player')
                             .eq('identifier', key)
@@ -296,7 +296,7 @@
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
-            const { data } = await db.from('snapshots').select('*').eq('type', 'team').order('captured_at', { ascending: false }).limit(1000);
+            const { data } = await db.from('rolling_leaderboards').select('*').eq('type', 'team').order('captured_at', { ascending: false }).limit(1000);
             if (!data) return;
 
             const map = new Map();
