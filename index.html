@@ -111,11 +111,6 @@
             return `<div class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-extrabold flex items-center justify-center text-xs nt-font">${index + 1}</div>`;
         }
 
-        function formatCarUrl(url) {
-            if (!url) return 'https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png';
-            return url.replace('www.nitrotype.com/cars/', 'www.nitrotype.com/assets/cars/images/cars/');
-        }
-
         async function loadLeaderboard() {
             if (!db || currentView !== 'individuals') return;
 
@@ -148,20 +143,28 @@
                 let displayPPR = latest.ppr || (displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00");
 
                 if (cutoffDate && currentTab !== 'alltime') {
+                    // Find closest snapshot taken on or immediately after the timeframe cutoff
                     let baseline = null;
-                    for (const s of snapshots) {
-                        if (new Date(s.captured_at) <= cutoffDate) {
-                            baseline = s;
+                    for (let i = snapshots.length - 1; i >= 0; i--) {
+                        const snapDate = new Date(snapshots[i].captured_at);
+                        if (snapDate <= cutoffDate) {
+                            baseline = snapshots[i];
                             break;
                         }
                     }
 
-                    if (!baseline) {
+                    // If tracking hasn't existed long enough for the cutoff, use the oldest recorded snapshot
+                    if (!baseline && snapshots.length > 1) {
                         baseline = snapshots[snapshots.length - 1];
                     }
 
-                    displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
-                    displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
+                    if (baseline) {
+                        displayRaces = Math.max(0, (latest.races || 0) - (baseline.races || 0));
+                        displayPoints = Math.max(0, (latest.points || 0) - (baseline.points || 0));
+                    } else {
+                        displayRaces = 0;
+                        displayPoints = 0;
+                    }
                     displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
                 }
 
@@ -182,7 +185,8 @@
 
             tbody.innerHTML = displayList.map((p, index) => {
                 const isGold = p.membership_status === 'gold';
-                const carUrl = formatCarUrl(p.car_img_url);
+                const fallbackCar = "https://www.nitrotype.com/cars/images/01_large_1.png";
+                const carUrl = p.car_img_url || fallbackCar;
                 const racerUrl = `https://www.nitrotype.com/racer/${p.identifier}`;
                 const teamUrl = p.team_tag ? `https://www.nitrotype.com/team/${p.team_tag}` : null;
 
@@ -192,7 +196,7 @@
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="w-14 h-9 bg-slate-900/90 rounded border border-slate-700/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-inner">
-                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" crossorigin="anonymous" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='https://www.nitrotype.com/assets/cars/images/cars/01_large_1.png';"/>
+                                <img src="${carUrl}" alt="Car" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='${fallbackCar}';"/>
                             </div>
                             <div>
                                 <div class="text-sm flex items-center gap-1.5 nt-font">

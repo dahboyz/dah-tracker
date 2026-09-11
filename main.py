@@ -27,7 +27,6 @@ def fetch_entities():
         return []
 
 def ensure_player_entity(user_id, username):
-    """Automatically registers the player in the entities table if not already present."""
     try:
         identifier = str(username or user_id).lower().strip()
         if not identifier:
@@ -43,16 +42,14 @@ def ensure_player_entity(user_id, username):
         pass
 
 def format_car_url(car_id):
-    """Formats car IDs into valid public Nitro Type CDN asset URLs that allow hotlinking."""
     try:
         cid = int(car_id)
         cid_str = f"{cid:02d}" if cid < 10 else str(cid)
     except (ValueError, TypeError):
         cid_str = "01"
-    return f"https://www.nitrotype.com/assets/cars/images/cars/{cid_str}_large_1.png"
+    return f"https://www.nitrotype.com/cars/images/{cid_str}_large_1.png"
 
 def process_and_save_player(player_data, team_tag=""):
-    """Saves player snapshots and auto-registers them in the entities table."""
     try:
         user_id = player_data.get("userID")
         raw_username = player_data.get("username") or player_data.get("identifier") or user_id
