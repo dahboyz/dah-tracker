@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dah Tracker - Leaderboards</title>
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://tailwindcss.com"></script>
-    <link rel="preconnect" href="https://googleapis.com">
-    <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700;1,900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700;1,900&display=swap" rel="stylesheet">
     <style>
         body { background-color: #0b1120; color: #f8fafc; font-family: 'Montserrat', sans-serif; }
         .nt-font { font-family: 'Montserrat', sans-serif; font-weight: 800; }
@@ -16,20 +16,19 @@
     </style>
 </head>
 <body class="bg-[#070b14] min-h-screen text-slate-100 selection:bg-sky-500 selection:text-white">
+
     <header class="bg-[#0b1120] border-b border-slate-800/80 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
         <div class="flex items-center gap-8">
             <div class="flex items-center gap-2 text-xl font-black tracking-wider italic text-sky-400 nt-font">
-                <span class="text-white">Dah</span> Tracker 
-                <span class="text-emerald-400 text-xs not-italic bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1.5 inline-flex font-normal">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Live
-                </span>
+                <span class="text-white">Dah</span> Tracker <span class="text-emerald-400 text-xs not-italic bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1.5 inline-flex font-normal"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Live</span>
             </div>
             <nav class="hidden md:flex items-center gap-1 text-sm font-semibold">
                 <button class="px-4 py-2 rounded-lg bg-sky-500 text-white shadow-sm shadow-sky-500/30">Leaderboards</button>
                 <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Teams</button>
                 <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Racers</button>
                 <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition flex items-center gap-1.5">
-                    Showdown <span class="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">NEW</span>
+                    Showdown 
+                    <span class="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">NEW</span>
                 </button>
                 <button class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">Info</button>
             </nav>
@@ -40,11 +39,13 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-6">
+
         <div class="flex items-center gap-6 text-sm font-bold border-b border-slate-800/60 pb-3 mb-5 text-slate-400 overflow-x-auto">
             <button onclick="switchMainView('teams')" id="subnav-teams" class="hover:text-white transition pb-3 -mb-[13px]">Team Leaderboards</button>
             <button onclick="switchMainView('individuals')" id="subnav-individuals" class="text-sky-400 font-extrabold border-b-2 border-sky-400 pb-3 -mb-[13px]">Individual Leaderboards</button>
             <button class="hover:text-white transition flex items-center gap-1.5 pb-3 -mb-[13px]">
-                Hall of Fame <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">NEW</span>
+                Hall of Fame 
+                <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">NEW</span>
             </button>
             <button class="hover:text-white transition pb-3 -mb-[13px]">Bans</button>
         </div>
@@ -63,11 +64,11 @@
             <div class="px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 bg-[#0b1120]/50">
                 <h2 id="table-title" class="text-base font-extrabold text-slate-200 nt-font">Individual Leaderboard (All-Time)</h2>
             </div>
+
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
                         <tr id="table-headers" class="bg-sky-500 text-white font-black text-xs uppercase tracking-wider nt-font">
-<<<<<<< Updated upstream
                             <th class="py-3.5 px-4 w-24">Racer</th>
                             <th class="py-3.5 px-4"></th>
                             <th class="py-3.5 px-4 text-right">Races &#9662;</th>
@@ -75,15 +76,6 @@
                             <th class="py-3.5 px-4 text-right">WPM &#9662;</th>
                             <th class="py-3.5 px-4 text-right">Points &#9662;</th>
                             <th class="py-3.5 px-4 text-right">PPR &#9662;</th>
-=======
-                            <th class="py-3.5 px-4 w-24" id="col-rank">Rank</th>
-                            <th class="py-3.5 px-4" id="col-name">Racer</th>
-                            <th class="py-3.5 px-4 text-right">Races ▾</th>
-                            <th class="py-3.5 px-4 text-right">Accuracy ▾</th>
-                            <th class="py-3.5 px-4 text-right">WPM ▾</th>
-                            <th class="py-3.5 px-4 text-right">Points ▾</th>
-                            <th class="py-3.5 px-4 text-right">PPR ▾</th>
->>>>>>> Stashed changes
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body" class="divide-y divide-slate-800/50 text-slate-300 text-xs font-semibold">
@@ -94,13 +86,10 @@
     </main>
 
     <script>
-        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_URL = "https://cmtmmlhbnfdoydrzhcup.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtdG1tbGhibmZkb3lkcnpoY3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njk5MTksImV4cCI6MjEwNDU0NTkxOX0.KpNXm3BNSmtogNFaM3sgerAUxkmnn1LvXds_Gx-svBA";
-        const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
+        const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         let currentView = "individuals";
         let currentTab = "alltime";
 
@@ -121,32 +110,27 @@
         }
 
         function parseCarUrl(url) {
-            if (!url || typeof url !== 'string') return "https://nitrotype.info";
+            if (!url || typeof url !== 'string') return "https://nitrotype.info/assets/images/cars/1_large_1.webp";
             const match = url.match(/cars\/(\d+)/) || url.match(/(\d+)_large/);
             if (match && match[1]) {
-                return `https://nitrotype.info${match[1]}_large_1.webp`;
+                return `https://nitrotype.info/assets/images/cars/${match[1]}_large_1.webp`;
             }
             return url;
         }
 
         function handleCarError(imgEl) {
             imgEl.onerror = null;
-            imgEl.src = "https://nitrotype.info";
+            imgEl.src = "https://nitrotype.info/assets/images/cars/1_large_1.webp";
         }
 
         async function loadLeaderboard() {
-<<<<<<< Updated upstream
             if (!db || currentView !== 'individuals') return;
 
-=======
-            if (!db) return;
->>>>>>> Stashed changes
             const tbody = document.getElementById("leaderboard-body");
             if (!tbody) return;
 
             tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">Loading leaderboard data...</td></tr>`;
 
-<<<<<<< Updated upstream
             const { data: latestData, error } = await db
                 .from('snapshots')
                 .select('*')
@@ -290,84 +274,6 @@
                     <td class="py-3 px-4 text-right font-mono text-slate-300">${p.calc_ppr || "0.00"}</td>
                 </tr>
             `}).join('');
-=======
-            const targetTable = currentTab === 'alltime' ? 'snapshots' : 'snapshots_v2';
-            let query = db.from(targetTable).select('*');
-            
-            if (currentView === 'individuals') {
-                query = query.eq('type', 'player');
-            } else {
-                query = query.eq('type', 'team');
-            }
-
-            if (currentTab === 'alltime') {
-                query = query.order('points', { ascending: false });
-            } else if (currentTab === '60m') {
-                query = query.order('races_60m', { ascending: false });
-            } else {
-                query = query.order('races_24h', { ascending: false });
-            }
-
-            const { data, error } = await query.limit(250);
-
-            if (error || !data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No leaderboard data found for this interval.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = data.map((item, index) => {
-                let displayRaces = 0;
-                let displayPoints = 0;
-                if (currentTab === 'alltime') {
-                    displayRaces = item.races || 0;
-                    displayPoints = item.points || 0;
-                } else if (currentTab === '60m') {
-                    displayRaces = item.races_60m || 0;
-                    displayPoints = item.points_60m || 0;
-                } else {
-                    displayRaces = item.races_24h || 0;
-                    displayPoints = item.points_24h || 0;
-                }
-                const displayPPR = displayRaces > 0 ? (displayPoints / displayRaces).toFixed(2) : "0.00";
-                if (currentView === 'individuals') {
-                    const isGold = item.membership_status === 'gold';
-                    const carUrl = parseCarUrl(item.car_img_url);
-                    const racerUrl = `https://nitrotype.com/${item.identifier}`;
-                    const teamUrl = item.team_tag ? `https://nitrotype.com/team/${item.team_tag}` : null;
-                    return `
-                        <tr>
-                            <td>${getRankBadge(index)}</td>
-                            <td>
-                                <a href="${racerUrl}" target="_blank" class="${isGold ? 'gold-member' : 'text-sky-300'} hover:underline font-bold">
-                                    ${item.title || item.identifier}
-                                </a>
-                                ${teamUrl ? `<br><a href="${teamUrl}" target="_blank" class="text-xs text-slate-500 hover:text-slate-300 transition">[${item.team_tag}]</a>` : ''}
-                            </td>
-                            <td class="text-right">${displayRaces.toLocaleString()}</td>
-                            <td class="text-right">${item.accuracy || 0}%</td>
-                            <td class="text-right">${item.wpm || 0}</td>
-                            <td class="text-right text-emerald-400 font-bold">${displayPoints.toLocaleString()}</td>
-                            <td class="text-right">${displayPPR}</td>
-                        </tr>`;
-                } else { 
-                    const teamUrl = `https://nitrotype.com/team/${item.team_tag || item.identifier}`; 
-                    return `
-                        <tr>
-                            <td>${getRankBadge(index)}</td>
-                            <td>
-                                <a href="${teamUrl}" target="_blank" class="text-sky-300 hover:underline font-bold">
-                                    [${item.team_tag}] ${item.title || item.team_tag}
-                                </a>
-                            </td>
-                            <td class="text-right">${displayRaces.toLocaleString()}</td>
-                            <td class="text-right">${item.accuracy || 0}%</td>
-                            <td class="text-right">${item.wpm || 0}</td>
-                            <td class="text-right text-emerald-400 font-bold">${displayPoints.toLocaleString()}</td>
-                            <td class="text-right">${displayPPR}</td>
-                        </tr>`;
-                }
-            }).join('');
->>>>>>> Stashed changes
         }
 
         function switchMainView(view) {
@@ -375,7 +281,6 @@
             if (view === 'teams') {
                 document.getElementById("subnav-teams").className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
                 document.getElementById("subnav-individuals").className = "hover:text-white transition pb-3 -mb-[13px]";
-<<<<<<< Updated upstream
                 document.getElementById("timeframe-toolbar").style.display = "none";
                 document.getElementById("table-title").innerText = "Team Leaderboard";
                 loadTeamLeaderboard();
@@ -417,16 +322,6 @@
                     <td class="py-3 px-4 text-right font-mono text-slate-300">${t.ppr || "0.00"}</td>
                 </tr>
             `).join('');
-=======
-                document.getElementById("col-name").innerText = "Team";
-            } else {
-                document.getElementById("subnav-individuals").className = "text-sky-400 font-black border-b-2 border-sky-400 pb-3 -mb-[13px]";
-                document.getElementById("subnav-teams").className = "hover:text-white transition pb-3 -mb-[13px]";
-                document.getElementById("col-name").innerText = "Racer";
-            }
-            updateTitleText();
-            loadLeaderboard();
->>>>>>> Stashed changes
         }
 
         function setTab(tab) {
@@ -436,7 +331,6 @@
             });
             const activeBtn = document.getElementById(`btn-${tab}`);
             if (activeBtn) activeBtn.className = "time-btn px-3.5 py-2 rounded-lg bg-sky-500 text-white shadow-sm";
-<<<<<<< Updated upstream
             
             const titles = {
                 '60m': 'Individual Leaderboard (Last 60 Minutes)',
@@ -449,24 +343,6 @@
             };
             document.getElementById("table-title").innerText = titles[tab] || 'Individual Leaderboard';
             loadLeaderboard();
-=======
-            updateTitleText();
-            loadLeaderboard();
-        }
-
-        function updateTitleText() {
-            const labelType = currentView === 'individuals' ? 'Individual' : 'Team';
-            const titles = {
-                '60m': `${labelType} Leaderboard (Last 60 Minutes)`,
-                '24h': `${labelType} Leaderboard (Last 24 Hours)`,
-                '7d': `${labelType} Leaderboard (Last 7 Days)`,
-                'weekly': `${labelType} Leaderboard (Weekly)`,
-                'monthly': `${labelType} Leaderboard (Monthly)`,
-                'yearly': `${labelType} Leaderboard (Yearly)`,
-                'alltime': `${labelType} Leaderboard (All-Time)`
-            };
-            document.getElementById("table-title").innerText = titles[currentTab] || `${labelType} Leaderboard`;
->>>>>>> Stashed changes
         }
 
         loadLeaderboard();
