@@ -281,62 +281,32 @@
 
             tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">Loading team leaderboard data...</td></tr>`;
 
-            // If 24h tab is active, query the secure SQL view directly to eliminate spikes
-            if (currentTab === '24h') {
-                const { data: viewData, error: viewError } = await db
-                    .from('team_leaderboards_v2')
-                    .select('*')
-                    .order('points', { ascending: false })
-                    .limit(1000);
-
-                if (viewError || !viewData || viewData.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No team data found.</td></tr>`;
-                    return;
-                }
-
-                const displayList = viewData.map(t => ({
-                    ...t,
-                    calc_races: t.races || 0,
-                    calc_points: t.points || 0,
-                    calc_ppr: t.ppr || "0.00",
-                    calc_wpm: t.wpm || 0,
-                    calc_acc: t.accuracy || 0
-                }));
-
-                tbody.innerHTML = displayList.map((t, index) => {
-                    const teamTag = t.team_tag || t.identifier.toUpperCase();
-                    const teamUrl = `https://www.nitrotype.com/team/${teamTag}`;
-
-                    return `
-                    <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/40">
-                        <td class="py-3 px-4 font-bold">${getRankBadge(index)}</td>
-                        <td class="py-3 px-4 font-bold text-sky-300 text-sm nt-font">
-                            <a href="${teamUrl}" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-2">
-                                <span class="bg-sky-500/10 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded text-xs font-mono font-bold">[${teamTag}]</span>
-                                <span>${t.title || teamTag}</span>
-                            </a>
-                        </td>
-                        <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.calc_races || 0).toLocaleString()}</td>
-                        <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_acc || 0}%</td>
-                        <td class="py-3 px-4 text-right font-mono text-slate-200">${t.calc_wpm || 0}</td>
-                        <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(t.calc_points || 0).toLocaleString()}</td>
-                        <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_ppr || "0.00"}</td>
-                    </tr>
-                `}).join('');
-                return;
-            }
-
-            // Standard fallback path for other tabs (60m, 7d, all-time, etc.)
             const { data: latestData, error } = await db
                 .from('snapshots')
                 .select('*')
                 .eq('type', 'team')
                 .order('captured_at', { ascending: false })
-                .limit(1000);
+                .limit(2000);
 
             if (error || !latestData || latestData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No team data found.</td></tr>`;
                 return;
+            }
+
+            // Find the absolute maximum stats recorded for each team across all history for All-Time accuracy
+            const maxStatsMap = new Map();
+            for (const item of latestData) {
+                const key = String(item.team_tag || item.identifier || '').toUpperCase().trim();
+                if (!key) continue;
+                if (!maxStatsMap.has(key)) {
+                    maxStatsMap.set(key, { ...item });
+                } else {
+                    const existing = maxStatsMap.get(key);
+                    if ((item.races || 0) > (existing.races || 0)) existing.races = item.races;
+                    if ((item.points || 0) > (existing.points || 0)) existing.points = item.points;
+                    if ((item.wpm || 0) > (existing.wpm || 0)) existing.wpm = item.wpm;
+                    if ((item.accuracy || 0) > (existing.accuracy || 0)) existing.accuracy = item.accuracy;
+                }
             }
 
             const latestMap = new Map();
@@ -418,13 +388,19 @@
                 }));
             } else {
                 activeTeams.forEach((latest) => {
+                    const key = String(latest.team_tag || latest.identifier || '').toUpperCase().trim();
+                    const peak = maxStatsMap.get(key) || latest;
                     displayList.push({
                         ...latest,
-                        calc_races: latest.races || 0,
-                        calc_points: latest.points || 0,
-                        calc_ppr: latest.ppr || "0.00",
-                        calc_wpm: latest.wpm || 0,
-                        calc_acc: latest.accuracy || 0
+                        races: peak.races || latest.races || 0,
+                        points: peak.points || latest.points || 0,
+                        wpm: peak.wpm || latest.wpm || 0,
+                        accuracy: peak.accuracy || latest.accuracy || 0,
+                        calc_races: peak.races || latest.races || 0,
+                        calc_points: peak.points || latest.points || 0,
+                        calc_ppr: peak.ppr || latest.ppr || "0.00",
+                        calc_wpm: peak.wpm || latest.wpm || 0,
+                        calc_acc: peak.accuracy || latest.accuracy || 0
                     });
                 });
             }
@@ -447,11 +423,11 @@
                             <span>${t.title || teamTag}</span>
                         </a>
                     </td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.calc_races || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_acc || 0}%</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-200">${t.calc_wpm || 0}</td>
-                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(t.calc_points || 0).toLocaleString()}</td>
-                    <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_ppr || "0.00"}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${(t.calc_races || t.races || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_acc || t.accuracy || 0}%</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-200">${t.calc_wpm || t.wpm || 0}</td>
+                    <td class="py-3 px-4 text-right font-mono text-emerald-400 font-bold">${(t.calc_points || t.points || 0).toLocaleString()}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${t.calc_ppr || t.ppr || "0.00"}</td>
                 </tr>
             `}).join('');
         }
